@@ -58,19 +58,17 @@ func runEditor() {
 			os.Exit(1) // TODO: Will think of something better in such a case
 		}
 
+		scrollTextBuffer()
 		displayTextBuffer()
 		displayStatusBar()
+		termbox.SetCursor(currentCol-offsetCol, currentRow-offsetRow)
 
 		if err := termbox.Flush(); err != nil {
 			slog.Error("Could not show message", "error", err)
 			os.Exit(1) // TODO: Will think of something better in such a case
 		}
 
-		e := termbox.PollEvent()
-		if e.Type == termbox.EventKey && (e.Key == termbox.KeyEsc || e.Key == termbox.KeyCtrlQ) {
-			termbox.Close()
-			break
-		}
+		processKeyPress()
 	}
 }
 
@@ -188,4 +186,35 @@ func readFile(name string) {
 	if lineNum == 0 {
 		textBuf = append(textBuf, []rune{})
 	}
+}
+
+func scrollTextBuffer() {
+	if currentRow < offsetRow {
+		offsetRow = currentRow
+	}
+
+	if currentCol < offsetCol {
+		offsetCol = currentCol
+	}
+
+	if currentRow >= offsetRow+ROWS {
+		offsetRow = currentRow - ROWS + 1
+	}
+
+	if currentCol >= offsetCol+COLS {
+		offsetCol = currentCol - COLS + 1
+	}
+}
+
+func getKey() termbox.Event {
+	var keyEvent termbox.Event
+
+	switch event := termbox.PollEvent(); event.Type {
+	case termbox.EventKey:
+		keyEvent = event
+	case termbox.EventError:
+		panic(event.Err) // TODO: Will think of something better in such a case
+	}
+
+	return keyEvent
 }
