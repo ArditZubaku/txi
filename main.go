@@ -3,17 +3,26 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/nsf/termbox-go"
 )
 
 var (
-	ROWS, COLS       int
-	offsetX, offsetY int
-	textBuf          [][]rune
-	sourceFile       string
+	ROWS, COLS             int
+	offsetRow, offsetCol   int
+	currentRow, currentCol int
+	textBuf                [][]rune
+	undoBuf                [][]rune
+	copyBuf                []rune
+	sourceFile             string
+	mode                   int
+	modified               bool
 )
 
 func main() {
@@ -50,6 +59,7 @@ func runEditor() {
 		}
 
 		displayTextBuffer()
+		displayStatusBar()
 
 		if err := termbox.Flush(); err != nil {
 			slog.Error("Could not show message", "error", err)
@@ -68,7 +78,7 @@ func displayTextBuffer() {
 	bufLen := len(textBuf)
 
 	for row := 0; row < ROWS; row++ {
-		textBufRow := row + offsetY
+		textBufRow := row + offsetRow
 
 		// Past end of buffer: draw line indicator once per row
 		if textBufRow >= bufLen {
@@ -84,7 +94,7 @@ func displayTextBuffer() {
 
 		// Render visible characters in current row
 		for col := 0; col < COLS; col++ {
-			textBufCol := col + offsetX
+			textBufCol := col + offsetCol
 			if textBufCol < 0 || textBufCol >= lineLen {
 				continue
 			}
@@ -96,6 +106,48 @@ func displayTextBuffer() {
 				termbox.SetChar(col, row, ch)
 			}
 		}
+	}
+}
+
+func displayStatusBar() {
+	var modeStatus, copyStatus, undoStatus, fileStatus, cursorStatus string
+
+	if mode > 0 {
+		modeStatus = " EDIT: "
+	} else {
+		modeStatus = " VIEW: "
+	}
+
+	// truncate the file name
+	fileNameLen := min(len(sourceFile), 8)
+
+	status := "saved"
+	if modified {
+		status = "modified"
+	}
+	fileStatus = fmt.Sprintf("%s - %d lines %s", sourceFile[:fileNameLen], len(textBuf), status)
+
+	cursorStatus = fmt.Sprintf("Row %s, Col %s ", strconv.Itoa(currentRow+1), strconv.Itoa(currentCol+1))
+
+	if len(copyBuf) > 0 {
+		copyStatus = " [Copy]"
+	}
+
+	if len(undoBuf) > 0 {
+		undoStatus = " [Undo]"
+	}
+
+	usedSpace := len(modeStatus) + len(fileStatus) + len(cursorStatus) + len(copyStatus) + len(undoStatus)
+	spaces := strings.Repeat(" ", COLS-usedSpace)
+	txt := modeStatus + fileStatus + copyStatus + undoStatus + spaces + cursorStatus
+
+	printMessage(0, ROWS, termbox.ColorBlack, termbox.ColorWhite, txt)
+}
+
+func printMessage(col, row int, fg, bg termbox.Attribute, msg string) {
+	for _, ch := range msg {
+		termbox.SetCell(col, row, ch, fg, bg)
+		col += runewidth.RuneWidth(ch)
 	}
 }
 
