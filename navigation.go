@@ -36,6 +36,8 @@ func processKeyPress() {
 			switch keyEvent.Ch {
 			case 103: // g
 				lastChTime = time.Now()
+			case 71: // G <bottom>
+				goToBottom()
 			case 104: // h <left>
 				left()
 			case 106: // j <down>
@@ -132,5 +134,10 @@ func pageDown() {
 
 func goToTop() {
 	currentRow = 0
+	currentCol = 0
+}
+
+func goToBottom() {
+	currentRow = len(textBuf) - 1
 	currentCol = 0
 }
