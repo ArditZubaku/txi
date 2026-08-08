@@ -85,8 +85,12 @@ func processKeyPress() {
 				}
 			case termbox.KeyArrowUp:
 				up()
+			case termbox.KeyCtrlU:
+				pageUp()
 			case termbox.KeyArrowDown:
 				down()
+			case termbox.KeyCtrlD:
+				pageDown() // this is a vim motion actually, but it far easier to handle it like this
 			case termbox.KeyArrowLeft:
 				left()
 			case termbox.KeyArrowRight:
@@ -154,14 +158,18 @@ func right() {
 }
 
 func pageUp() {
-	if (currentRow - ROWS/4) > 0 {
-		currentRow -= ROWS / 4
+	if (currentRow - ROWS/2) > 0 {
+		currentRow -= ROWS / 2
+	} else {
+		currentRow = 0
 	}
 }
 
 func pageDown() {
-	if (currentRow + ROWS/4) < len(textBuf)-1 {
-		currentRow += ROWS / 4
+	if (currentRow + ROWS/2) < len(textBuf)-1 {
+		currentRow += ROWS / 2
+	} else {
+		currentRow = len(textBuf) - 1
 	}
 }
 
