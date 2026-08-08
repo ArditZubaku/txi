@@ -154,6 +154,35 @@ func isSpace(ch rune) bool {
 	return ch == ' ' || ch == '\t'
 }
 
+func isWordChar(ch rune) bool {
+	return ch == '_' ||
+		(ch >= 'a' && ch <= 'z') ||
+		(ch >= 'A' && ch <= 'Z') ||
+		(ch >= '0' && ch <= '9')
+}
+
+// charClass mirrors VIM's word/punct/space split: a run of same-class
+// characters is one "word" for w/b purposes, so e.g. `"foo` is two words
+// (the quote, then foo) rather than one.
+type charClass int
+
+const (
+	classSpace charClass = iota
+	classWord
+	classPunct
+)
+
+func classOf(ch rune) charClass {
+	switch {
+	case isSpace(ch):
+		return classSpace
+	case isWordChar(ch):
+		return classWord
+	default:
+		return classPunct
+	}
+}
+
 // charAt treats past-end-of-line as whitespace, so word motions see line
 // breaks as word boundaries without special-casing them separately.
 func charAt(row, col int) rune {
@@ -175,16 +204,19 @@ func stepForward(row, col int) (int, int) {
 
 func nextWord() {
 	row, col := currentRow, currentCol
+	startClass := classOf(charAt(row, col))
 
-	for !isSpace(charAt(row, col)) {
-		nr, nc := stepForward(row, col)
-		if nr == row && nc == col {
-			break
+	if startClass != classSpace {
+		for classOf(charAt(row, col)) == startClass {
+			nr, nc := stepForward(row, col)
+			if nr == row && nc == col {
+				break
+			}
+			row, col = nr, nc
 		}
-		row, col = nr, nc
 	}
 
-	for isSpace(charAt(row, col)) {
+	for classOf(charAt(row, col)) == classSpace {
 		nr, nc := stepForward(row, col)
 		if nr == row && nc == col {
 			break
@@ -212,7 +244,7 @@ func prevWord() {
 	// lands on the previous word instead of itself
 	row, col = stepBackward(row, col)
 
-	for isSpace(charAt(row, col)) {
+	for classOf(charAt(row, col)) == classSpace {
 		nr, nc := stepBackward(row, col)
 		if nr == row && nc == col {
 			break
@@ -220,9 +252,10 @@ func prevWord() {
 		row, col = nr, nc
 	}
 
+	wordClass := classOf(charAt(row, col))
 	for {
 		pr, pc := stepBackward(row, col)
-		if (pr == row && pc == col) || isSpace(charAt(pr, pc)) {
+		if (pr == row && pc == col) || classOf(charAt(pr, pc)) != wordClass {
 			break
 		}
 		row, col = pr, pc
