@@ -140,6 +140,7 @@ func printMessage(col, row int, fg, bg termbox.Attribute, msg string) {
 func readFile(name string) {
 	file, err := os.Open(name)
 	if err != nil {
+		slog.Error("Failed to open file", "error", err)
 		sourceFile = name
 		textBuf = append(textBuf, []rune{})
 		return
@@ -151,18 +152,22 @@ func readFile(name string) {
 		}
 	}()
 
+	if info, err := file.Stat(); err == nil {
+		const avgLineLen = 40 // rough heuristic to size textBuf up front and avoid repeated growth
+		estimated := len(textBuf) + int(info.Size()/avgLineLen) + 1
+		if cap(textBuf) < estimated {
+			grown := make([][]rune, len(textBuf), estimated)
+			copy(grown, textBuf)
+			textBuf = grown
+		}
+	}
+
 	scanner := bufio.NewScanner(file)
-	lineNum := 0
+	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20) // allow lines longer than the 64KB default
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		textBuf = append(textBuf, []rune{})
-
-		for i := 0; i < len(line); i++ {
-			textBuf[lineNum] = append(textBuf[lineNum], rune(line[i]))
-		}
-
-		lineNum++
+		textBuf = append(textBuf, []rune(line))
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -171,7 +176,7 @@ func readFile(name string) {
 		return
 	}
 
-	if lineNum == 0 {
+	if len(textBuf) == 0 {
 		textBuf = append(textBuf, []rune{})
 	}
 }
