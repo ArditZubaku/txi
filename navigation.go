@@ -38,6 +38,8 @@ func processKeyPress() {
 				lastChTime = time.Now()
 			case 71: // G <bottom>
 				goToBottom()
+			case 73: // I <start of line>
+				currentCol = 0
 			case 104: // h <left>
 				left()
 			case 106: // j <down>
