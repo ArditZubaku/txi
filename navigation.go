@@ -19,6 +19,8 @@ func processKeyPress() {
 
 		// NOTE: VIM motions for scrolling
 		switch keyEvent.Ch {
+		case 103: // g
+			panic("implement me - g")
 		case 104: // h <left>
 			left()
 		case 106: // j <down>
