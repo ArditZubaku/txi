@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/nsf/termbox-go"
@@ -16,7 +15,7 @@ func processKeyPress() {
 		os.Exit(0)
 	} else if keyEvent.Ch != 0 {
 		// handle characters
-		fmt.Printf("here %+v", keyEvent)
+		// fmt.Printf("here %+v", keyEvent)
 
 		// NOTE: VIM motions for scrolling
 		switch keyEvent.Ch {
