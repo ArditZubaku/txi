@@ -13,18 +13,6 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-var (
-	ROWS, COLS             int
-	offsetRow, offsetCol   int
-	currentRow, currentCol int
-	textBuf                [][]rune
-	undoBuf                [][]rune
-	copyBuf                []rune
-	sourceFile             string
-	mode                   int
-	modified               bool
-)
-
 func main() {
 	runEditor()
 }

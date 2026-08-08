@@ -7,15 +7,6 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-// chordTimeout bounds how long a leading key of a two-key chord (e.g. "gg")
-// stays pending before it's treated as a fresh, unrelated keypress.
-const chordTimeout = 500 * time.Millisecond
-
-var (
-	lastCh     rune
-	lastChTime time.Time
-)
-
 func processKeyPress() {
 	keyEvent := getKey()
 	lineLen := len(textBuf[currentRow])
@@ -163,25 +154,14 @@ func isWordChar(ch rune) bool {
 		(ch >= '0' && ch <= '9')
 }
 
-// charClass mirrors VIM's word/punct/space split: a run of same-class
-// characters is one "word" for w/b purposes, so e.g. `"foo` is two words
-// (the quote, then foo) rather than one.
-type charClass int
-
-const (
-	classSpace charClass = iota
-	classWord
-	classPunct
-)
-
-func classOf(ch rune) charClass {
+func classOf(ch rune) CharClass {
 	switch {
 	case isSpace(ch):
-		return classSpace
+		return ClassSpace
 	case isWordChar(ch):
-		return classWord
+		return ClassWord
 	default:
-		return classPunct
+		return ClassPunct
 	}
 }
 
@@ -208,7 +188,7 @@ func nextWord() {
 	row, col := currentRow, currentCol
 	startClass := classOf(charAt(row, col))
 
-	if startClass != classSpace {
+	if startClass != ClassSpace {
 		for classOf(charAt(row, col)) == startClass {
 			nr, nc := stepForward(row, col)
 			if nr == row && nc == col {
@@ -218,7 +198,7 @@ func nextWord() {
 		}
 	}
 
-	for classOf(charAt(row, col)) == classSpace {
+	for classOf(charAt(row, col)) == ClassSpace {
 		nr, nc := stepForward(row, col)
 		if nr == row && nc == col {
 			break
@@ -236,7 +216,7 @@ func endOfWord() {
 	// a word moves to the end of the next one instead of staying put
 	row, col = stepForward(row, col)
 
-	for classOf(charAt(row, col)) == classSpace {
+	for classOf(charAt(row, col)) == ClassSpace {
 		nr, nc := stepForward(row, col)
 		if nr == row && nc == col {
 			break
@@ -273,7 +253,7 @@ func prevWord() {
 	// lands on the previous word instead of itself
 	row, col = stepBackward(row, col)
 
-	for classOf(charAt(row, col)) == classSpace {
+	for classOf(charAt(row, col)) == ClassSpace {
 		nr, nc := stepBackward(row, col)
 		if nr == row && nc == col {
 			break
