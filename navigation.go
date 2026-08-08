@@ -40,6 +40,8 @@ func processKeyPress() {
 				goToBottom()
 			case 73: // I <start of line>
 				currentCol = 0
+			case 65: // A <end of line>
+				currentCol = lineLen
 			case 104: // h <left>
 				left()
 			case 106: // j <down>
