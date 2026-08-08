@@ -9,6 +9,7 @@ import (
 
 func processKeyPress() {
 	keyEvent := getKey()
+	lineLen := len(textBuf[currentRow])
 
 	if keyEvent.Key == termbox.KeyEsc {
 		termbox.Close()
@@ -42,6 +43,14 @@ func processKeyPress() {
 			left()
 		case termbox.KeyArrowRight:
 			right()
+		case termbox.KeyHome:
+			currentCol = 0
+		case termbox.KeyEnd:
+			currentCol = lineLen
+		case termbox.KeyPgup:
+			pageUp()
+		case termbox.KeyPgdn:
+			pageDown()
 		}
 	}
 }
