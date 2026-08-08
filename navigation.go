@@ -54,6 +54,8 @@ func processKeyPress() {
 				nextWord()
 			case 98: // b <previous word>
 				prevWord()
+			case 101: // e <end of word>
+				endOfWord()
 			case 117: // u <up a page>
 				pageUp()
 			case 100: // d <down a page>
@@ -219,6 +221,33 @@ func nextWord() {
 	for classOf(charAt(row, col)) == classSpace {
 		nr, nc := stepForward(row, col)
 		if nr == row && nc == col {
+			break
+		}
+		row, col = nr, nc
+	}
+
+	currentRow, currentCol = row, col
+}
+
+func endOfWord() {
+	row, col := currentRow, currentCol
+
+	// always advance at least one position, so pressing 'e' at the end of
+	// a word moves to the end of the next one instead of staying put
+	row, col = stepForward(row, col)
+
+	for classOf(charAt(row, col)) == classSpace {
+		nr, nc := stepForward(row, col)
+		if nr == row && nc == col {
+			break
+		}
+		row, col = nr, nc
+	}
+
+	wordClass := classOf(charAt(row, col))
+	for {
+		nr, nc := stepForward(row, col)
+		if (nr == row && nc == col) || classOf(charAt(nr, nc)) != wordClass {
 			break
 		}
 		row, col = nr, nc
