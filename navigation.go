@@ -9,10 +9,7 @@ import (
 
 func processKeyPress() {
 	keyEvent := getKey()
-	lineLen := len(textBuf[currentRow])
-
-	// fmt.Printf("arr %+v\n", textBuf[currentRow])
-	// fmt.Printf("arr %+v\n", string(textBuf[currentRow]))
+	lineLen := buf.RuneLen(currentRow)
 
 	if keyEvent.Key == termbox.KeyEsc {
 		esc()
@@ -129,7 +126,7 @@ func up() {
 }
 
 func down() {
-	if currentRow < len(textBuf)-1 {
+	if currentRow < buf.LineCount()-1 {
 		currentRow++
 	}
 }
@@ -141,15 +138,15 @@ func left() {
 		// if we are not on the first line
 		// move to the end of the previous line
 		currentRow--
-		currentCol = len(textBuf[currentRow])
+		currentCol = buf.RuneLen(currentRow)
 	}
 }
 
 func right() {
-	lineLen := len(textBuf[currentRow])
+	lineLen := buf.RuneLen(currentRow)
 	if currentCol < lineLen {
 		currentCol++
-	} else if currentRow < len(textBuf)-1 {
+	} else if currentRow < buf.LineCount()-1 {
 		// if we are not on the last line
 		// move to the first column of a the new line
 		currentRow++
@@ -166,10 +163,10 @@ func pageUp() {
 }
 
 func pageDown() {
-	if (currentRow + ROWS/2) < len(textBuf)-1 {
+	if (currentRow + ROWS/2) < buf.LineCount()-1 {
 		currentRow += ROWS / 2
 	} else {
-		currentRow = len(textBuf) - 1
+		currentRow = buf.LineCount() - 1
 	}
 }
 
@@ -179,13 +176,12 @@ func goToTop() {
 }
 
 func goToBottom() {
-	currentRow = len(textBuf) - 1
+	currentRow = buf.LineCount() - 1
 	currentCol = 0
 }
 
 func goToEndOfLine() {
-	lineLen := len(textBuf[currentRow])
-	currentCol = lineLen
+	currentCol = buf.RuneLen(currentRow)
 	mode = EditMode
 	setCursorShape(CursorBlinkingBar)
 }
@@ -208,6 +204,7 @@ func editBeforeWord() {
 }
 
 func close() {
+	buf.Close()
 	termbox.Close()
 	os.Exit(0)
 }
@@ -237,17 +234,18 @@ func classOf(ch rune) CharClass {
 // charAt treats past-end-of-line as whitespace, so word motions see line
 // breaks as word boundaries without special-casing them separately.
 func charAt(row, col int) rune {
-	if col >= len(textBuf[row]) {
+	ch, ok := buf.Rune(row, col)
+	if !ok {
 		return ' '
 	}
-	return textBuf[row][col]
+	return ch
 }
 
 func stepForward(row, col int) (int, int) {
-	if col < len(textBuf[row]) {
+	if col < buf.RuneLen(row) {
 		return row, col + 1
 	}
-	if row < len(textBuf)-1 {
+	if row < buf.LineCount()-1 {
 		return row + 1, 0
 	}
 	return row, col
@@ -310,7 +308,7 @@ func stepBackward(row, col int) (int, int) {
 		return row, col - 1
 	}
 	if row > 0 {
-		return row - 1, len(textBuf[row-1])
+		return row - 1, buf.RuneLen(row - 1)
 	}
 	return row, col
 }

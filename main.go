@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -25,11 +23,10 @@ func runEditor() {
 
 	if len(os.Args) > 1 {
 		sourceFile = os.Args[1]
-		readFile(sourceFile)
+		buf = openBuffer(sourceFile)
 	} else {
 		sourceFile = "out.txt"
-		// So we have a new line at the end of the file
-		textBuf = append(textBuf, []rune{})
+		buf = newEmptyBuffer()
 	}
 
 	for {
@@ -61,7 +58,7 @@ func runEditor() {
 }
 
 func displayTextBuffer() {
-	bufLen := len(textBuf)
+	bufLen := buf.LineCount()
 
 	for row := 0; row < ROWS; row++ {
 		textBufRow := row + offsetRow
@@ -75,7 +72,7 @@ func displayTextBuffer() {
 			continue
 		}
 
-		line := textBuf[textBufRow]
+		line := buf.Line(textBufRow)
 		lineLen := len(line)
 
 		// Render visible characters in current row
@@ -111,7 +108,7 @@ func displayStatusBar() {
 	if modified {
 		status = "modified"
 	}
-	fileStatus = fmt.Sprintf("%s - %d lines %s", sourceFile[:fileNameLen], len(textBuf), status)
+	fileStatus = fmt.Sprintf("%s - %d lines %s", sourceFile[:fileNameLen], buf.LineCount(), status)
 
 	cursorStatus = fmt.Sprintf("Row %s, Col %s ", strconv.Itoa(currentRow+1), strconv.Itoa(currentCol+1))
 
@@ -134,50 +131,6 @@ func printMessage(col, row int, fg, bg termbox.Attribute, msg string) {
 	for _, ch := range msg {
 		termbox.SetCell(col, row, ch, fg, bg)
 		col += runewidth.RuneWidth(ch)
-	}
-}
-
-func readFile(name string) {
-	file, err := os.Open(name)
-	if err != nil {
-		slog.Error("Failed to open file", "error", err)
-		sourceFile = name
-		textBuf = append(textBuf, []rune{})
-		return
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
-			slog.Error("Failed to close file", "path", file.Name(), "error", err)
-		}
-	}()
-
-	if info, err := file.Stat(); err == nil {
-		const avgLineLen = 40 // rough heuristic to size textBuf up front and avoid repeated growth
-		estimated := len(textBuf) + int(info.Size()/avgLineLen) + 1
-		if cap(textBuf) < estimated {
-			grown := make([][]rune, len(textBuf), estimated)
-			copy(grown, textBuf)
-			textBuf = grown
-		}
-	}
-
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20) // allow lines longer than the 64KB default
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		textBuf = append(textBuf, []rune(line))
-	}
-
-	if err := scanner.Err(); err != nil {
-		slog.Error("Failed to scan the file", "file", file.Name(), "error", err)
-		// TODO: Show the user something about this
-		return
-	}
-
-	if len(textBuf) == 0 {
-		textBuf = append(textBuf, []rune{})
 	}
 }
 

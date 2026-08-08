@@ -3,23 +3,21 @@ package main
 import "github.com/nsf/termbox-go"
 
 func insertRune(event termbox.Event) {
-	// TODO: improve this, unneccessary doubling of memory, we could just maneuver with the textBuf directly
-	currentLine := textBuf[currentRow]
-	lineLen := len(currentLine)
+	currentLine := buf.Line(currentRow)
 
-	runesToInsert := make([]rune, lineLen+1)
-	copy(runesToInsert[:currentCol], currentLine[:currentCol])
+	// currentLine may alias the shared read window,
+	// so build a fresh slice rather than inserting in place.
+	updated := make([]rune, len(currentLine)+1)
+	copy(updated[:currentCol], currentLine[:currentCol])
 
 	switch event.Key {
-	case termbox.KeySpace:
-		runesToInsert[currentCol] = ' '
-	case termbox.KeyTab:
-		runesToInsert[currentCol] = ' '
+	case termbox.KeySpace, termbox.KeyTab:
+		updated[currentCol] = ' '
 	default:
-		runesToInsert[currentCol] = event.Ch
+		updated[currentCol] = event.Ch
 	}
 
-	copy(runesToInsert[currentCol+1:], textBuf[currentRow][currentCol:])
-	textBuf[currentRow] = runesToInsert
+	copy(updated[currentCol+1:], currentLine[currentCol:])
+	buf.SetLine(currentRow, updated)
 	currentCol++
 }

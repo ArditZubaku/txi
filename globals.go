@@ -6,7 +6,7 @@ var (
 	ROWS, COLS             int
 	offsetRow, offsetCol   int
 	currentRow, currentCol int
-	textBuf                [][]rune
+	buf                    *Buffer
 	undoBuf                [][]rune
 	copyBuf                []rune
 	sourceFile             string
