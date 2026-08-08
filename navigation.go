@@ -50,6 +50,8 @@ func processKeyPress() {
 				up()
 			case 108: // l <right>
 				right()
+			case 119: // w <next word>
+				nextWord()
 			case 117: // u <up a page>
 				pageUp()
 			case 100: // d <down a page>
@@ -144,4 +146,49 @@ func goToTop() {
 func goToBottom() {
 	currentRow = len(textBuf) - 1
 	currentCol = 0
+}
+
+func isSpace(ch rune) bool {
+	return ch == ' ' || ch == '\t'
+}
+
+// charAt treats past-end-of-line as whitespace, so word motions see line
+// breaks as word boundaries without special-casing them separately.
+func charAt(row, col int) rune {
+	if col >= len(textBuf[row]) {
+		return ' '
+	}
+	return textBuf[row][col]
+}
+
+func stepForward(row, col int) (int, int) {
+	if col < len(textBuf[row]) {
+		return row, col + 1
+	}
+	if row < len(textBuf)-1 {
+		return row + 1, 0
+	}
+	return row, col
+}
+
+func nextWord() {
+	row, col := currentRow, currentCol
+
+	for !isSpace(charAt(row, col)) {
+		nr, nc := stepForward(row, col)
+		if nr == row && nc == col {
+			break
+		}
+		row, col = nr, nc
+	}
+
+	for isSpace(charAt(row, col)) {
+		nr, nc := stepForward(row, col)
+		if nr == row && nc == col {
+			break
+		}
+		row, col = nr, nc
+	}
+
+	currentRow, currentCol = row, col
 }
