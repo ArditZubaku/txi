@@ -2,8 +2,18 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/nsf/termbox-go"
+)
+
+// chordTimeout bounds how long a leading key of a two-key chord (e.g. "gg")
+// stays pending before it's treated as a fresh, unrelated keypress.
+const chordTimeout = 500 * time.Millisecond
+
+var (
+	lastCh     rune
+	lastChTime time.Time
 )
 
 func processKeyPress() {
@@ -18,27 +28,36 @@ func processKeyPress() {
 		// fmt.Printf("here %+v", keyEvent)
 
 		// NOTE: VIM motions for scrolling
-		switch keyEvent.Ch {
-		case 103: // g
-			panic("implement me - g")
-		case 104: // h <left>
-			left()
-		case 106: // j <down>
-			down()
-		case 107: // k <up>
-			up()
-		case 108: // l <right>
-			right()
-		case 117: // u <up a page>
-			pageUp()
-		case 100: // d <down a page>
-			pageDown()
+		if keyEvent.Ch == 103 && lastCh == 103 && time.Since(lastChTime) < chordTimeout {
+			// second 'g' of "gg" arrived in time - jump to the top
+			goToTop()
+			lastCh = 0
+		} else {
+			switch keyEvent.Ch {
+			case 103: // g
+				lastChTime = time.Now()
+			case 104: // h <left>
+				left()
+			case 106: // j <down>
+				down()
+			case 107: // k <up>
+				up()
+			case 108: // l <right>
+				right()
+			case 117: // u <up a page>
+				pageUp()
+			case 100: // d <down a page>
+				pageDown()
+			}
+			lastCh = keyEvent.Ch
 		}
 
 		if currentCol > lineLen {
 			currentCol = lineLen
 		}
 	} else {
+		lastCh = 0 // any special key cancels a pending "g"
+
 		switch keyEvent.Key {
 		case termbox.KeyArrowUp:
 			up()
@@ -109,4 +128,9 @@ func pageDown() {
 	if (currentRow + ROWS/4) < len(textBuf)-1 {
 		currentRow += ROWS / 4
 	}
+}
+
+func goToTop() {
+	currentRow = 0
+	currentCol = 0
 }
