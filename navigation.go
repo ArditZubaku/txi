@@ -28,13 +28,9 @@ func processKeyPress() {
 		case 108: // l <right>
 			right()
 		case 117: // u <up a page>
-			if currentRow != 0 {
-				currentRow -= 15 // idk how many lines VIM goes up but this should be good
-			}
+			pageUp()
 		case 100: // d <down a page>
-			if currentRow < len(textBuf)-1 {
-				currentRow += 15
-			}
+			pageDown()
 		}
 	} else {
 		switch keyEvent.Key {
@@ -82,5 +78,17 @@ func right() {
 		// move to the first column of a the new line
 		currentRow++
 		currentCol = 0
+	}
+}
+
+func pageUp() {
+	if (currentRow - ROWS/4) > 0 {
+		currentRow -= ROWS / 4
+	}
+}
+
+func pageDown() {
+	if (currentRow + ROWS/4) < len(textBuf)-1 {
+		currentRow += ROWS / 4
 	}
 }
