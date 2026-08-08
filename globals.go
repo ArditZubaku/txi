@@ -10,7 +10,7 @@ var (
 	undoBuf                [][]rune
 	copyBuf                []rune
 	sourceFile             string
-	mode                   int
+	mode                   Mode
 	modified               bool
 )
 
@@ -33,3 +33,12 @@ const (
 	ClassWord
 	ClassPunct
 )
+
+type Mode int
+
+const (
+	ReadMode Mode = iota
+	EditMode
+)
+
+var lastKeyPressed rune

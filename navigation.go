@@ -11,79 +11,111 @@ func processKeyPress() {
 	keyEvent := getKey()
 	lineLen := len(textBuf[currentRow])
 
-	if keyEvent.Key == termbox.KeyEsc {
-		termbox.Close()
-		os.Exit(0)
-	} else if keyEvent.Ch != 0 {
-		// handle characters
-		// fmt.Printf("here %+v", keyEvent)
+	// fmt.Printf("arr %+v\n", textBuf[currentRow])
+	// fmt.Printf("arr %+v\n", string(textBuf[currentRow]))
 
-		// NOTE: VIM motions for scrolling
-		if keyEvent.Ch == 103 && lastCh == 103 && time.Since(lastChTime) < chordTimeout {
-			// second 'g' of "gg" arrived in time - jump to the top
-			goToTop()
-			lastCh = 0
+	if keyEvent.Key == termbox.KeyEsc {
+		esc()
+	} else {
+		if keyEvent.Ch != 0 {
+			// handle characters
+			switch mode {
+			case EditMode:
+				insertRune(keyEvent)
+				modified = true
+			case ReadMode:
+				// NOTE: VIM motions for scrolling
+				if keyEvent.Ch == 103 && lastCh == 103 && time.Since(lastChTime) < chordTimeout {
+					// second 'g' of "gg" arrived in time - jump to the top
+					goToTop()
+					lastCh = 0
+				} else {
+					switch keyEvent.Ch {
+					case 'g':
+						lastChTime = time.Now()
+					case 'G':
+						goToBottom()
+					case 'I':
+						goToStartOfLine()
+					case 'A':
+						goToEndOfLine()
+					case 'a':
+						editAfterWord()
+					case 'h':
+						left()
+					case 'j':
+						down()
+					case 'k':
+						up()
+					case 'l':
+						right()
+					case 'w':
+						nextWord()
+					case 'b':
+						prevWord()
+					case 'e':
+						endOfWord()
+					case 'q':
+						close()
+					case 'i':
+						editBeforeWord()
+					}
+					lastCh = keyEvent.Ch
+				}
+
+				if currentCol > lineLen {
+					currentCol = lineLen
+				}
+			}
 		} else {
-			switch keyEvent.Ch {
-			case 103: // g
-				lastChTime = time.Now()
-			case 71: // G <bottom>
-				goToBottom()
-			case 73: // I <start of line>
-				currentCol = 0
-			case 65: // A <end of line>
-				currentCol = lineLen
-			case 104: // h <left>
-				left()
-			case 106: // j <down>
-				down()
-			case 107: // k <up>
+			lastCh = 0 // any special key cancels a pending "g"
+
+			switch keyEvent.Key {
+			case termbox.KeyTab:
+				if mode == EditMode {
+					for range 4 {
+						insertRune(keyEvent)
+					}
+					modified = true
+				}
+			case termbox.KeySpace:
+				if mode == EditMode {
+					insertRune(keyEvent)
+					modified = true
+				}
+			case termbox.KeyArrowUp:
 				up()
-			case 108: // l <right>
+			case termbox.KeyArrowDown:
+				down()
+			case termbox.KeyArrowLeft:
+				left()
+			case termbox.KeyArrowRight:
 				right()
-			case 119: // w <next word>
-				nextWord()
-			case 98: // b <previous word>
-				prevWord()
-			case 101: // e <end of word>
-				endOfWord()
-			case 117: // u <up a page>
+			case termbox.KeyHome:
+				currentCol = 0
+			case termbox.KeyEnd:
+				currentCol = lineLen
+			case termbox.KeyPgup:
 				pageUp()
-			case 100: // d <down a page>
+			case termbox.KeyPgdn:
 				pageDown()
 			}
-			lastCh = keyEvent.Ch
-		}
 
-		if currentCol > lineLen {
-			currentCol = lineLen
-		}
-	} else {
-		lastCh = 0 // any special key cancels a pending "g"
-
-		switch keyEvent.Key {
-		case termbox.KeyArrowUp:
-			up()
-		case termbox.KeyArrowDown:
-			down()
-		case termbox.KeyArrowLeft:
-			left()
-		case termbox.KeyArrowRight:
-			right()
-		case termbox.KeyHome:
-			currentCol = 0
-		case termbox.KeyEnd:
-			currentCol = lineLen
-		case termbox.KeyPgup:
-			pageUp()
-		case termbox.KeyPgdn:
-			pageDown()
-		}
-
-		if currentCol > lineLen {
-			currentCol = lineLen
+			if currentCol > lineLen {
+				currentCol = lineLen
+			}
 		}
 	}
+
+	lastKeyPressed = keyEvent.Ch
+}
+
+func esc() {
+	mode = ReadMode
+	if currentCol > 0 && (lastKeyPressed == 'i' || lastKeyPressed == 'a') {
+		currentCol = currentCol - 1
+	}
+	setCursorShape(CursorDefault)
 }
 
 func up() {
@@ -141,6 +173,35 @@ func goToTop() {
 func goToBottom() {
 	currentRow = len(textBuf) - 1
 	currentCol = 0
+}
+
+func goToEndOfLine() {
+	lineLen := len(textBuf[currentRow])
+	currentCol = lineLen
+	mode = EditMode
+	setCursorShape(CursorBlinkingBar)
+}
+
+func goToStartOfLine() {
+	currentCol = 0
+	mode = EditMode
+	setCursorShape(CursorBlinkingBar)
+}
+
+func editAfterWord() {
+	currentCol = currentCol + 1
+	mode = EditMode
+	setCursorShape(CursorBlinkingBar)
+}
+
+func editBeforeWord() {
+	mode = EditMode
+	setCursorShape(CursorBlinkingBar)
+}
+
+func close() {
+	termbox.Close()
+	os.Exit(0)
 }
 
 func isSpace(ch rune) bool {
