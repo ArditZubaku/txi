@@ -52,6 +52,8 @@ func processKeyPress() {
 				right()
 			case 119: // w <next word>
 				nextWord()
+			case 98: // b <previous word>
+				prevWord()
 			case 117: // u <up a page>
 				pageUp()
 			case 100: // d <down a page>
@@ -188,6 +190,42 @@ func nextWord() {
 			break
 		}
 		row, col = nr, nc
+	}
+
+	currentRow, currentCol = row, col
+}
+
+func stepBackward(row, col int) (int, int) {
+	if col > 0 {
+		return row, col - 1
+	}
+	if row > 0 {
+		return row - 1, len(textBuf[row-1])
+	}
+	return row, col
+}
+
+func prevWord() {
+	row, col := currentRow, currentCol
+
+	// step off the current word first, so pressing 'b' from a word-start
+	// lands on the previous word instead of itself
+	row, col = stepBackward(row, col)
+
+	for isSpace(charAt(row, col)) {
+		nr, nc := stepBackward(row, col)
+		if nr == row && nc == col {
+			break
+		}
+		row, col = nr, nc
+	}
+
+	for {
+		pr, pc := stepBackward(row, col)
+		if (pr == row && pc == col) || isSpace(charAt(pr, pc)) {
+			break
+		}
+		row, col = pr, pc
 	}
 
 	currentRow, currentCol = row, col
