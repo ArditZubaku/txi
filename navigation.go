@@ -33,6 +33,10 @@ func processKeyPress() {
 		case 100: // d <down a page>
 			pageDown()
 		}
+
+		if currentCol > lineLen {
+			currentCol = lineLen
+		}
 	} else {
 		switch keyEvent.Key {
 		case termbox.KeyArrowUp:
@@ -51,6 +55,10 @@ func processKeyPress() {
 			pageUp()
 		case termbox.KeyPgdn:
 			pageDown()
+		}
+
+		if currentCol > lineLen {
+			currentCol = lineLen
 		}
 	}
 }
