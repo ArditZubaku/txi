@@ -23,7 +23,7 @@ go build -o txi .
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Relative line numbers** — a gutter on the left showing each line's distance from the cursor, with the cursor's own line carrying its absolute number instead, like VIM's `number`/`relativenumber` pair. It widens with the buffer's line count (four columns until the count reaches four digits) and the text and horizontal scrolling start after it.
 - **Cursor line highlight** — the line the cursor is on is drawn as a dark gray band across the full width of the terminal, gutter included, like VIM's `cursorline`, with its line number in yellow.
-- **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
+- **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size. `zz` recentres it on the cursor's line without moving the cursor, and `40zz` centres on line 40, jumping there first; near the end of the buffer the window is left hanging past the last line rather than pinned to it, the way VIM does it.
 - **Status bar** — current mode, file name, line count, modified/saved state, whether the register and the undo/redo stacks hold anything, the count being typed, and cursor row/column.
 - **Constant-memory file loading** — the file is never held in memory. Opening it builds an index of where each line starts (8 bytes per line) and nothing else; lines are read through one fixed 64KB window and decoded to runes only when they're on screen or under the cursor. Opening a 23MB file of 202,000 lines and jumping to the end costs **8.8MB of RSS**, and that figure doesn't move however far you scroll — 5.2MB of it is the Go runtime floor a one-line file also pays, so the file itself accounts for 2.6MB. See [Memory model](#memory-model).
 
@@ -58,6 +58,7 @@ go build -o txi .
 | `i` | Normal | enter Insert mode before the cursor |
 | `a` | Normal | enter Insert mode after the cursor |
 | `Ctrl-S` | Either | save to the file that was opened |
+| `zz` | Normal | redraw with the cursor's line in the middle of the window, keeping the column (`[count]zz` centres on that line) |
 | `Ctrl-U` | Either | scroll up half a screen |
 | `Ctrl-D` | Either | scroll down half a screen |
 | `Esc` | Insert | return to Normal mode (cursor steps back a column, VIM-style) |
