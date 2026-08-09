@@ -53,6 +53,8 @@ var readModeActions = map[rune]func(){
 	'q': closeEditor,
 	'i': editBeforeWord,
 	'x': deleteRune,
+	'o': openLineBelow,
+	'O': openLineAbove,
 }
 
 var chordActions = map[[2]rune]func(){
@@ -204,23 +206,24 @@ func goToBottom() {
 
 func goToEndOfLine() {
 	currentCol = buf.RuneLen(currentRow)
-	mode = EditMode
-	setCursorShape(CursorBlinkingBar)
+	enterEditMode()
 }
 
 func goToStartOfLine() {
 	currentCol = 0
-	mode = EditMode
-	setCursorShape(CursorBlinkingBar)
+	enterEditMode()
 }
 
 func editAfterWord() {
 	currentCol++
-	mode = EditMode
-	setCursorShape(CursorBlinkingBar)
+	enterEditMode()
 }
 
 func editBeforeWord() {
+	enterEditMode()
+}
+
+func enterEditMode() {
 	mode = EditMode
 	setCursorShape(CursorBlinkingBar)
 }

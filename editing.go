@@ -68,6 +68,25 @@ func deleteTo(row, col int) {
 	modified = true
 }
 
+// openLineBelow is 'o' and openLineAbove is 'O': both add an empty line and
+// start typing on it.
+func openLineBelow() {
+	buf.InsertLine(currentRow + 1)
+	currentRow++
+	startInsert()
+}
+
+func openLineAbove() {
+	buf.InsertLine(currentRow)
+	startInsert()
+}
+
+func startInsert() {
+	currentCol = 0
+	modified = true
+	enterEditMode()
+}
+
 // backspace deletes behind the cursor in Edit mode, joining onto the line
 // above when there is nothing left to delete on this one. In Read mode it is
 // VIM's plain leftwards move.
