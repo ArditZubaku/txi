@@ -120,6 +120,122 @@ func TestInsertLineAcrossBigFile(t *testing.T) {
 	}
 }
 
+func TestSplitLine(t *testing.T) {
+	cases := []struct {
+		name string
+		col  int
+		want []string
+	}{
+		{"mid-line", 2, []string{"a", "bb", "cc", "c", "dddd"}},
+		{"at the start", 0, []string{"a", "bb", "", "ccc", "dddd"}},
+		{"at the end", 3, []string{"a", "bb", "ccc", "", "dddd"}},
+		{"clamped past the end", 99, []string{"a", "bb", "ccc", "", "dddd"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := openBuffer(writeTemp(t, "a\nbb\nccc\ndddd\n"))
+			defer b.Close()
+
+			b.SplitLine(2, tc.col)
+			wantLines(t, b, tc.want...)
+		})
+	}
+}
+
+// Split then join is a round trip, and both halves have to stay editable.
+func TestSplitLineThenEdit(t *testing.T) {
+	b := openBuffer(writeTemp(t, "héllo wörld\nlast\n"))
+	defer b.Close()
+
+	b.SplitLine(0, 6)
+	wantLines(t, b, "héllo ", "wörld", "last")
+
+	b.InsertRune(0, 6, '-')
+	b.InsertRune(1, 5, '!')
+	wantLines(t, b, "héllo -", "wörld!", "last")
+
+	b.DeleteRunes(0, 6, 7)
+	b.JoinLine(0)
+	wantLines(t, b, "héllo wörld!", "last")
+}
+
+func TestSplitLineSaves(t *testing.T) {
+	path := writeTemp(t, "abcd\nlast\n")
+	b := openBuffer(path)
+	defer b.Close()
+
+	b.SplitLine(0, 2)
+	if err := b.Save(path); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := readBack(t, path); got != "ab\ncd\nlast\n" {
+		t.Fatalf("file = %q, want %q", got, "ab\ncd\nlast\n")
+	}
+	wantLines(t, b, "ab", "cd", "last")
+}
+
+func TestSplitLineAcrossBigFile(t *testing.T) {
+	path := bigFile(t, 5000)
+	want := fullDecode(t, path)
+
+	b := openBuffer(path)
+	defer b.Close()
+
+	// 41 is longer than the window, 97 is empty
+	for _, row := range []int{4999, 2345, 97, 41, 0} {
+		b.SplitLine(row, 1)
+		head, tail := want[row][:min(1, len(want[row]))], want[row][min(1, len(want[row])):]
+		want = append(want[:row], append([][]rune{head, tail}, want[row+1:]...)...)
+	}
+
+	if b.LineCount() != len(want) {
+		t.Fatalf("LineCount = %d, want %d", b.LineCount(), len(want))
+	}
+	for i := range want {
+		if got := string(b.Line(i)); got != string(want[i]) {
+			t.Fatalf("Line(%d) = %.40q, want %.40q", i, got, string(want[i]))
+		}
+	}
+}
+
+func TestEnter(t *testing.T) {
+	t.Run("splits in Edit mode", func(t *testing.T) {
+		b := atCursor(t, "abcd\nlast\n", 0, 2)
+		mode = EditMode
+
+		enter()
+		wantLines(t, b, "ab", "cd", "last")
+		if currentRow != 1 || currentCol != 0 || !modified {
+			t.Errorf("cursor at %d,%d, modified %v", currentRow, currentCol, modified)
+		}
+	})
+
+	t.Run("moves down in Read mode", func(t *testing.T) {
+		b := atCursor(t, "abcd\nlast\n", 0, 2)
+		mode = ReadMode
+
+		enter()
+		wantLines(t, b, "abcd", "last")
+		if currentRow != 1 || modified {
+			t.Errorf("currentRow = %d, modified %v", currentRow, modified)
+		}
+	})
+
+	t.Run("split then backspace is a round trip", func(t *testing.T) {
+		b := atCursor(t, "abcd\n", 0, 2)
+		mode = EditMode
+
+		enter()
+		backspace()
+		wantLines(t, b, "abcd")
+		if currentRow != 0 || currentCol != 2 {
+			t.Errorf("cursor at %d,%d, want 0,2", currentRow, currentCol)
+		}
+	})
+}
+
 func TestOpenLineOperators(t *testing.T) {
 	t.Run("o opens below", func(t *testing.T) {
 		b := atCursor(t, "a\nbb\n", 0, 1)
