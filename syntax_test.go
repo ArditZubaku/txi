@@ -7,8 +7,9 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-// A mask spells out one character per rune of the line: k keyword, t type,
-// s string, n number, c comment, . uncoloured.
+// A mask spells out one character per rune of the line: k keyword, l literal
+// constant, t type, e escape, f function, b builtin, s string, n number,
+// c comment, . uncoloured.
 func mask(t *testing.T, s *Syntax, line string, inBlock bool) (string, bool) {
 	t.Helper()
 
@@ -25,8 +26,16 @@ func mask(t *testing.T, s *Syntax, line string, inBlock bool) (string, bool) {
 		switch color {
 		case colorKeyword:
 			b.WriteByte('k')
+		case colorConstant:
+			b.WriteByte('l')
 		case colorType:
 			b.WriteByte('t')
+		case colorEscape:
+			b.WriteByte('e')
+		case colorFunction:
+			b.WriteByte('f')
+		case colorBuiltin:
+			b.WriteByte('b')
 		case colorString:
 			b.WriteByte('s')
 		case colorNumber:
@@ -49,11 +58,18 @@ func TestHighlightGo(t *testing.T) {
 	}{
 		{"keywords and types", "var x int = 42", "kkk...ttt...nn"},
 		{"a word is not a keyword by prefix", "myvar varx", ".........."},
-		{"strings", `p("hi")`, "..ssss."},
-		{"a comment marker inside a string", `p("// no")`, "..sssssss."},
+		{"literal constants", "return nil, true", "kkkkkk.lll..llll"},
+		{"a called name", "greet(x)", "fffff..."},
+		{"a name that is not called", "greet x", "......."},
+		{"a builtin outranks the call colour", "len(xs)", "bbb...."},
+		{"a method call, not its receiver", "os.Exit(1)", "...ffff.n."},
+		{"strings", `p("hi")`, "f.ssss."},
+		{"a comment marker inside a string", `p("// no")`, "f.sssssss."},
 		{"a quote inside a comment", "// it's fine", "cccccccccccc"},
 		{"a comment after code", "x++ // why", "....cccccc"},
-		{"an escaped quote does not end the string", `"a\"b" 1`, "ssssss.n"},
+		{"an escaped quote does not end the string", `"a\"b" 1`, "sseess.n"},
+		{"an escape sequence inside a string", `"a\nb"`, "sseess"},
+		{"a trailing backslash", `"a\`, "sse"},
 		{"an unterminated string stops at the line end", `s := "abc`, ".....ssss"},
 		{"a raw string keeps its backslashes", "`a\\` 1", "ssss.n"},
 		{"a one-line block comment", "a /* b */ c", "..ccccccc.."},
@@ -112,8 +128,9 @@ func TestHighlightHashLanguages(t *testing.T) {
 		want string
 	}{
 		{"a hash comment", "x = 1  # why", "....n..ccccc"},
-		{"a hash inside a string", `p("#1")`, "..ssss."},
-		{"python keywords and builtins", "def f(): return len(x)", "kkk......kkkkkk.ttt..."},
+		{"a hash inside a string", `p("#1")`, "f.ssss."},
+		{"python keywords and builtins", "def f(): return len(x)", "kkk.f....kkkkkk.bbb..."},
+		{"python constants", "self.x = None", "llll.....llll"},
 		{"a slash pair is not a comment here", "a // b", "......"},
 	}
 
