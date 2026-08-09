@@ -102,10 +102,9 @@ func displayTextBuffer() {
 
 			ch := line[textBufCol]
 			if ch == '\t' {
-				termbox.SetCell(gutter+col, row, ' ', termbox.ColorDefault, termbox.ColorGreen)
-			} else {
-				termbox.SetChar(gutter+col, row, ch)
+				ch = ' '
 			}
+			termbox.SetChar(gutter+col, row, ch)
 		}
 	}
 }
