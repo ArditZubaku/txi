@@ -5,15 +5,15 @@ import (
 	"testing"
 )
 
-func inWindow(t *testing.T, lines, rows, row int) {
+func inWindow(t *testing.T, lines, row int) {
 	t.Helper()
 
 	inReadMode(t, strings.Repeat("x\n", lines), row, 0)
-	ROWS, COLS, offsetRow, offsetCol = rows, 80, 0, 0
+	ROWS, COLS, offsetRow, offsetCol = 20, 80, 0, 0
 }
 
 func TestCenterViewPutsTheCursorLineInTheMiddle(t *testing.T) {
-	inWindow(t, 100, 20, 50)
+	inWindow(t, 100, 50)
 
 	press(t, "zz")
 
@@ -26,7 +26,7 @@ func TestCenterViewPutsTheCursorLineInTheMiddle(t *testing.T) {
 }
 
 func TestCenterViewNearTheTopStopsAtTheFirstLine(t *testing.T) {
-	inWindow(t, 100, 20, 3)
+	inWindow(t, 100, 3)
 
 	press(t, "zz")
 
@@ -36,7 +36,7 @@ func TestCenterViewNearTheTopStopsAtTheFirstLine(t *testing.T) {
 }
 
 func TestCenterViewNearTheEndScrollsPastTheLastLine(t *testing.T) {
-	inWindow(t, 100, 20, 99)
+	inWindow(t, 100, 99)
 
 	press(t, "zz")
 
@@ -46,7 +46,7 @@ func TestCenterViewNearTheEndScrollsPastTheLastLine(t *testing.T) {
 }
 
 func TestCountedCenterViewJumpsToThatLine(t *testing.T) {
-	inWindow(t, 100, 20, 0)
+	inWindow(t, 100, 0)
 
 	press(t, "40zz")
 
@@ -59,7 +59,7 @@ func TestCountedCenterViewJumpsToThatLine(t *testing.T) {
 }
 
 func TestCountedCenterViewStopsAtTheLastLine(t *testing.T) {
-	inWindow(t, 10, 20, 0)
+	inWindow(t, 10, 0)
 
 	press(t, "99zz")
 
@@ -80,7 +80,7 @@ func TestCenterViewKeepsTheColumn(t *testing.T) {
 }
 
 func TestCenterViewIsNotUndoable(t *testing.T) {
-	inWindow(t, 100, 20, 50)
+	inWindow(t, 100, 50)
 
 	press(t, "zz")
 
@@ -90,7 +90,7 @@ func TestCenterViewIsNotUndoable(t *testing.T) {
 }
 
 func TestScrollingFollowsTheCursorAwayFromACenteredView(t *testing.T) {
-	inWindow(t, 100, 20, 50)
+	inWindow(t, 100, 50)
 
 	press(t, "zz")
 	scrollTextBuffer()
