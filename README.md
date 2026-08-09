@@ -14,6 +14,7 @@ go build -o txi .
 
 - **Modal editing** — a Read (Normal) mode for navigation and an Edit (Insert) mode for typing, with the terminal cursor changing shape (block vs. blinking bar) depending on mode.
 - **VIM-style navigation** — `hjkl`, word motions (`w`/`b`/`e`), line jumps (`I`/`A`), buffer jumps (`gg`/`G`); see the full list below.
+- **Saving** — `Ctrl-S`, in either mode. The buffer is streamed to a temporary file in the same directory and renamed over the target, so a failed write cannot truncate the original; untouched lines are copied as raw bytes, so a save costs no more memory than scrolling does. File permissions, CRLF line endings on untouched lines, and a missing trailing newline are all preserved.
 - **Deleting** — `x`, `dw`, `de` and `dd`, all in place: a line delete compacts the line index rather than rebuilding it, and a character delete reuses the edited line's own backing array, so deleting never costs more memory than the text it removes.
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
@@ -38,6 +39,7 @@ go build -o txi .
 | `A` | Normal | jump to end of line and enter Insert mode |
 | `i` | Normal | enter Insert mode before the cursor |
 | `a` | Normal | enter Insert mode after the cursor |
+| `Ctrl-S` | Either | save to the file that was opened |
 | `Ctrl-U` | Either | scroll up half a screen |
 | `Ctrl-D` | Either | scroll down half a screen |
 | `Esc` | Insert | return to Normal mode (cursor steps back a column, VIM-style) |
@@ -80,8 +82,8 @@ shrinks back. Only the index scales with file size, at 8 bytes per line.
 
 ### Goals not yet implemented
 
-- Saving to disk (there is currently no write/`:w` path — the "modified"/"saved" status only reflects in-memory state)
-- `:` command mode (`:w`, `:q`, `:wq`, ...) — `q` quits directly, with no unsaved-changes check
+- `:` command mode (`:w`, `:q`, `:wq`, ...) — saving is `Ctrl-S`, and `q` quits directly, with no unsaved-changes check
+- Saving under a different name (`:w other.txt`), and any error reporting beyond a log line if the save fails
 - Visual mode
 - Search (`/`, `?`, `n`, `N`)
 - The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ..., and counts like `3dd`) — only `x`, `dw`, `de` and `dd` exist so far, and `dw`/`de` stop at the end of the line instead of joining the next one
