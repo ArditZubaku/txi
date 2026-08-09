@@ -29,6 +29,8 @@ func runEditor() {
 		buf = newEmptyBuffer()
 	}
 
+	syntax = detectSyntax(sourceFile)
+
 	for {
 		// Fetch current screen dimensions
 		COLS, ROWS = termbox.Size()
@@ -70,6 +72,7 @@ func displayTextBuffer() {
 	bufLen := buf.LineCount()
 	gutter := gutterWidth(bufLen)
 	textCols := COLS - gutter
+	inBlock := blockStateBefore(offsetRow)
 
 	for row := 0; row < ROWS; row++ {
 		textBufRow := row + offsetRow
@@ -93,6 +96,9 @@ func displayTextBuffer() {
 		line := buf.Line(textBufRow)
 		lineLen := len(line)
 
+		var colors []termbox.Attribute
+		colors, inBlock = lineColors(line, inBlock)
+
 		// Render visible characters in current row
 		for col := 0; col < textCols; col++ {
 			textBufCol := col + offsetCol
@@ -104,7 +110,12 @@ func displayTextBuffer() {
 			if ch == '\t' {
 				ch = ' '
 			}
-			termbox.SetChar(gutter+col, row, ch)
+
+			foreground := colorPlain
+			if colors != nil {
+				foreground = colors[textBufCol]
+			}
+			termbox.SetCell(gutter+col, row, ch, foreground, background)
 		}
 	}
 }
