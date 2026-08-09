@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"slices"
 
 	"github.com/nsf/termbox-go"
 )
@@ -13,6 +14,7 @@ func insertRune(event termbox.Event) {
 		ch = ' '
 	}
 
+	touchLine(currentRow)
 	buf.InsertRune(currentRow, currentCol, ch)
 	currentCol++
 	modified = true
@@ -20,10 +22,15 @@ func insertRune(event termbox.Event) {
 
 // deleteRune - drop the character under the cursor.
 func deleteRune() {
-	if currentCol >= buf.RuneLen(currentRow) {
+	line := buf.Line(currentRow)
+	to := min(currentCol+count(), len(line))
+	if currentCol >= to {
 		return
 	}
-	buf.DeleteRunes(currentRow, currentCol, currentCol+1)
+
+	yankChars(currentRow, currentCol, to)
+	touchLine(currentRow)
+	buf.DeleteRunes(currentRow, currentCol, to)
 	modified = true
 }
 
@@ -51,6 +58,8 @@ func deleteToPrevWord() {
 		return
 	}
 
+	yankChars(currentRow, col, currentCol)
+	touchLine(currentRow)
 	buf.DeleteRunes(currentRow, col, currentCol)
 	currentCol = col
 	modified = true
@@ -64,6 +73,8 @@ func deleteTo(row, col int) {
 		return
 	}
 
+	yankChars(currentRow, currentCol, col)
+	touchLine(currentRow)
 	buf.DeleteRunes(currentRow, currentCol, col)
 	modified = true
 }
@@ -71,12 +82,14 @@ func deleteTo(row, col int) {
 // openLineBelow is 'o' and openLineAbove is 'O': both add an empty line and
 // start typing on it.
 func openLineBelow() {
+	touchInsertLine(currentRow + 1)
 	buf.InsertLine(currentRow + 1)
 	currentRow++
 	startInsert()
 }
 
 func openLineAbove() {
+	touchInsertLine(currentRow)
 	buf.InsertLine(currentRow)
 	startInsert()
 }
@@ -95,6 +108,8 @@ func enter() {
 		return
 	}
 
+	touchLine(currentRow)
+	touchInsertLine(currentRow + 1)
 	buf.SplitLine(currentRow, currentCol)
 	currentRow++
 	currentCol = 0
@@ -112,9 +127,12 @@ func backspace() {
 
 	switch {
 	case currentCol > 0:
+		touchLine(currentRow)
 		currentCol--
 		buf.DeleteRunes(currentRow, currentCol, currentCol+1)
 	case currentRow > 0:
+		touchLine(currentRow - 1)
+		touchDeleteLine(currentRow)
 		currentRow--
 		currentCol = buf.RuneLen(currentRow)
 		buf.JoinLine(currentRow)
@@ -136,7 +154,21 @@ func saveFile() {
 }
 
 func deleteLine() {
-	buf.DeleteLine(currentRow)
+	n := min(count(), buf.LineCount()-currentRow)
+
+	lines := make([][]rune, 0, n)
+	for range n {
+		lines = append(lines, slices.Clone(buf.Line(currentRow)))
+		// the last line of a buffer is emptied rather than dropped
+		if buf.LineCount() == 1 {
+			touchLine(currentRow)
+		} else {
+			touchDeleteLine(currentRow)
+		}
+		buf.DeleteLine(currentRow)
+	}
+	clipboard = register{lines: lines, linewise: true}
+
 	if currentRow >= buf.LineCount() {
 		currentRow = buf.LineCount() - 1
 	}
