@@ -166,24 +166,25 @@ func down() {
 	}
 }
 
+// left and right stay on their line in Read mode, the way VIM's h and l do.
+// Only Edit mode wraps, so that typing can run off one line onto the next.
 func left() {
 	if currentCol != 0 {
 		currentCol--
-	} else if currentRow > 0 {
-		// if we are not on the first line
-		// move to the end of the previous line
+		return
+	}
+	if mode == EditMode && currentRow > 0 {
 		currentRow--
-		currentCol = buf.RuneLen(currentRow)
+		currentCol = maxCol(currentRow)
 	}
 }
 
 func right() {
-	lineLen := buf.RuneLen(currentRow)
-	if currentCol < lineLen {
+	if currentCol < maxCol(currentRow) {
 		currentCol++
-	} else if currentRow < buf.LineCount()-1 {
-		// if we are not on the last line
-		// move to the first column of a the new line
+		return
+	}
+	if mode == EditMode && currentRow < buf.LineCount()-1 {
 		currentRow++
 		currentCol = 0
 	}
