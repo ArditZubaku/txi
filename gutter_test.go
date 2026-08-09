@@ -48,8 +48,6 @@ func TestLineNumberLabel(t *testing.T) {
 	}
 }
 
-// Every label must occupy exactly the gutter it was measured for, or the text
-// beside it would sit a column out.
 func TestLineNumberLabelFillsTheGutter(t *testing.T) {
 	for _, lines := range []int{1, 9, 10, 999, 1000, 202000} {
 		width := gutterWidth(lines)
