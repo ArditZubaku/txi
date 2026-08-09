@@ -46,7 +46,7 @@ func runEditor() {
 		scrollTextBuffer()
 		displayTextBuffer()
 		displayStatusBar()
-		termbox.SetCursor(currentCol-offsetCol, currentRow-offsetRow)
+		termbox.SetCursor(currentCol-offsetCol+gutterWidth(buf.LineCount()), currentRow-offsetRow)
 
 		if err := termbox.Flush(); err != nil {
 			slog.Error("Could not show message", "error", err)
@@ -59,6 +59,8 @@ func runEditor() {
 
 func displayTextBuffer() {
 	bufLen := buf.LineCount()
+	gutter := gutterWidth(bufLen)
+	textCols := COLS - gutter
 
 	for row := 0; row < ROWS; row++ {
 		textBufRow := row + offsetRow
@@ -72,11 +74,17 @@ func displayTextBuffer() {
 			continue
 		}
 
+		numberColor := termbox.ColorBlue
+		if textBufRow == currentRow {
+			numberColor = termbox.ColorYellow
+		}
+		printMessage(0, row, numberColor, termbox.ColorDefault, lineNumberLabel(textBufRow, currentRow, gutter))
+
 		line := buf.Line(textBufRow)
 		lineLen := len(line)
 
 		// Render visible characters in current row
-		for col := 0; col < COLS; col++ {
+		for col := 0; col < textCols; col++ {
 			textBufCol := col + offsetCol
 			if textBufCol < 0 || textBufCol >= lineLen {
 				continue
@@ -84,9 +92,9 @@ func displayTextBuffer() {
 
 			ch := line[textBufCol]
 			if ch == '\t' {
-				termbox.SetCell(col, row, ' ', termbox.ColorDefault, termbox.ColorGreen)
+				termbox.SetCell(gutter+col, row, ' ', termbox.ColorDefault, termbox.ColorGreen)
 			} else {
-				termbox.SetChar(col, row, ch)
+				termbox.SetChar(gutter+col, row, ch)
 			}
 		}
 	}
@@ -135,6 +143,9 @@ func printMessage(col, row int, fg, bg termbox.Attribute, msg string) {
 }
 
 func scrollTextBuffer() {
+	// the gutter eats into the columns the text itself gets
+	textCols := COLS - gutterWidth(buf.LineCount())
+
 	if currentRow < offsetRow {
 		offsetRow = currentRow
 	}
@@ -147,8 +158,8 @@ func scrollTextBuffer() {
 		offsetRow = currentRow - ROWS + 1
 	}
 
-	if currentCol >= offsetCol+COLS {
-		offsetCol = currentCol - COLS + 1
+	if currentCol >= offsetCol+textCols {
+		offsetCol = currentCol - textCols + 1
 	}
 }
 
