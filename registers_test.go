@@ -1,0 +1,103 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/nsf/termbox-go"
+)
+
+func inReadMode(t *testing.T, content string, row, col int) *Buffer {
+	t.Helper()
+
+	b := atCursor(t, content, row, col)
+	mode = ReadMode
+	lastCh, pendingCount, cmdCount = 0, 0, 1
+	undoStack, redoStack, pendingChange = nil, nil, nil
+	clipboard = register{}
+
+	return b
+}
+
+func press(t *testing.T, keys string) {
+	t.Helper()
+
+	for _, ch := range keys {
+		handleReadModeChar(termbox.Event{Ch: ch})
+	}
+}
+
+func TestYankLineAndPaste(t *testing.T) {
+	b := inReadMode(t, "foo\nbar\n", 0, 0)
+
+	press(t, "yyp")
+
+	wantLines(t, b, "foo", "foo", "bar")
+	if currentRow != 1 || currentCol != 0 {
+		t.Errorf("cursor at %d,%d, want 1,0", currentRow, currentCol)
+	}
+}
+
+func TestPasteBeforePutsTheLineAbove(t *testing.T) {
+	b := inReadMode(t, "foo\nbar\n", 1, 0)
+
+	press(t, "yyP")
+
+	wantLines(t, b, "foo", "bar", "bar")
+	if currentRow != 1 {
+		t.Errorf("currentRow = %d, want 1", currentRow)
+	}
+}
+
+func TestCountedPaste(t *testing.T) {
+	b := inReadMode(t, "foo\n", 0, 0)
+
+	press(t, "yy3p")
+
+	wantLines(t, b, "foo", "foo", "foo", "foo")
+}
+
+func TestCountedYankLine(t *testing.T) {
+	b := inReadMode(t, "a\nb\nc\n", 0, 0)
+
+	press(t, "2yyp")
+
+	wantLines(t, b, "a", "a", "b", "b", "c")
+}
+
+func TestCharwiseYankAndPaste(t *testing.T) {
+	b := inReadMode(t, "foo bar\n", 0, 0)
+
+	press(t, "ywp")
+
+	wantLines(t, b, "ffoo oo bar")
+	if currentCol != 4 {
+		t.Errorf("currentCol = %d, want 4", currentCol)
+	}
+}
+
+func TestDeleteLineFillsTheRegister(t *testing.T) {
+	b := inReadMode(t, "foo\nbar\n", 0, 0)
+
+	press(t, "ddp")
+
+	wantLines(t, b, "bar", "foo")
+}
+
+func TestDeleteRuneFillsTheRegister(t *testing.T) {
+	b := inReadMode(t, "abcdef\n", 0, 0)
+
+	press(t, "3xp")
+
+	wantLines(t, b, "dabcef")
+}
+
+func TestPasteWithAnEmptyRegisterDoesNothing(t *testing.T) {
+	b := inReadMode(t, "foo\n", 0, 0)
+
+	press(t, "p")
+
+	wantLines(t, b, "foo")
+	if modified {
+		t.Error("modified with nothing to paste")
+	}
+}
