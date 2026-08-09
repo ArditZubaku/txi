@@ -407,6 +407,22 @@ func (b *Buffer) InsertLine(i int) {
 	b.winFrom, b.winTo = -1, -1
 }
 
+// SplitLine breaks line i at col, moving what follows onto a new line below.
+// Only the tail is copied: the head keeps the array it already had, so typing
+// on after a split does not start from a fresh allocation.
+func (b *Buffer) SplitLine(i, col int) {
+	if i < 0 || i >= b.count {
+		return
+	}
+
+	line := b.Line(i)
+	col = min(max(col, 0), len(line))
+	tail := slices.Clone(line[col:])
+
+	b.InsertLine(i + 1)
+	b.overlay[i], b.overlay[i+1] = line[:col], tail
+}
+
 // JoinLine appends line i+1 to line i and drops it. The result has to live in
 // the overlay: the two lines are contiguous on disk apart from the terminator
 // between them, and the index cannot express a line with a hole in it.
