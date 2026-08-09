@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"unicode/utf8"
 )
@@ -136,6 +138,62 @@ func buildIndex(r io.ReaderAt, size int64) []int64 {
 	return starts
 }
 
+// Save writes the buffer to path through a temporary file in the same
+// directory and renames it over the target, so a failed write can never
+// truncate the original. Unedited lines are copied as raw bytes straight out of
+// the read window, so saving holds no more memory than scrolling does, whatever
+// the file size. The buffer is then reopened against what was written, which
+// drops the overlay and rebuilds the index.
+func (b *Buffer) Save(path string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".txi-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }() // a no-op once the rename lands
+
+	if info, err := os.Stat(path); err == nil {
+		if err := tmp.Chmod(info.Mode().Perm()); err != nil {
+			slog.Error("Failed to carry over file permissions", "path", path, "error", err)
+		}
+	}
+
+	// bufio's error is sticky, so it is enough to check it once at the Flush.
+	w := bufio.NewWriterSize(tmp, windowBytes)
+	for i := range b.count {
+		if line, ok := b.overlay[i]; ok {
+			for _, ch := range line {
+				_, _ = w.WriteRune(ch)
+			}
+		} else {
+			_, _ = w.Write(b.rawLine(i))
+		}
+		if i < b.count-1 || b.endsWithNewline {
+			_ = w.WriteByte('\n')
+		}
+	}
+
+	if err := w.Flush(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return err
+	}
+
+	// the old handle still points at the replaced file
+	b.Close()
+	*b = *openBuffer(path)
+
+	return nil
+}
+
 func (b *Buffer) Close() {
 	if b == nil || b.file == nil {
 		return
@@ -188,8 +246,8 @@ func (b *Buffer) fillWindow(i int) {
 	}
 }
 
-// raw aliases the window: the next fill invalidates the result.
-func (b *Buffer) raw(i int) []byte {
+// rawLine aliases the window: the next fill invalidates the result.
+func (b *Buffer) rawLine(i int) []byte {
 	if i < b.winFrom || i >= b.winTo {
 		b.fillWindow(i)
 		if i < b.winFrom || i >= b.winTo {
@@ -197,7 +255,13 @@ func (b *Buffer) raw(i int) []byte {
 		}
 	}
 
-	line := b.win[b.starts[i]-b.winBase : b.lineEnd(i)-b.winBase]
+	return b.win[b.starts[i]-b.winBase : b.lineEnd(i)-b.winBase]
+}
+
+// raw drops the '\r' of a CRLF pair, which rawLine keeps so that saving an
+// untouched line writes back the bytes it was read as.
+func (b *Buffer) raw(i int) []byte {
+	line := b.rawLine(i)
 	if len(line) > 0 && line[len(line)-1] == '\r' {
 		line = line[:len(line)-1]
 	}
