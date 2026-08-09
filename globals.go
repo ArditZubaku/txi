@@ -7,12 +7,25 @@ var (
 	offsetRow, offsetCol   int
 	currentRow, currentCol int
 	buf                    *Buffer
-	undoBuf                [][]rune
-	copyBuf                []rune
 	sourceFile             string
 	mode                   Mode
 	modified               bool
 )
+
+// pendingCount is the count typed so far, cmdCount the one the running command
+// was given. maxCount keeps a fat-fingered "99999999p" from hanging the editor.
+var (
+	pendingCount int
+	cmdCount     int
+)
+
+const maxCount = 9999
+
+// count is how much of itself the running command should do, defaulting to
+// once when no count was typed.
+func count() int {
+	return max(cmdCount, 1)
+}
 
 // chordTimeout bounds how long a leading key of a two-key chord (e.g. "gg")
 // stays pending before it's treated as a fresh, unrelated keypress.

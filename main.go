@@ -110,7 +110,7 @@ func displayTextBuffer() {
 }
 
 func displayStatusBar() {
-	var modeStatus, copyStatus, undoStatus, fileStatus, cursorStatus string
+	var modeStatus, copyStatus, undoStatus, redoStatus, countStatus, fileStatus, cursorStatus string
 
 	if mode > 0 {
 		modeStatus = " EDIT: "
@@ -129,17 +129,26 @@ func displayStatusBar() {
 
 	cursorStatus = fmt.Sprintf("Row %s, Col %s ", strconv.Itoa(currentRow+1), strconv.Itoa(currentCol+1))
 
-	if len(copyBuf) > 0 {
+	if !clipboard.empty() {
 		copyStatus = " [Copy]"
 	}
 
-	if len(undoBuf) > 0 {
+	if len(undoStack) > 0 {
 		undoStatus = " [Undo]"
 	}
 
-	usedSpace := len(modeStatus) + len(fileStatus) + len(cursorStatus) + len(copyStatus) + len(undoStatus)
-	spaces := strings.Repeat(" ", COLS-usedSpace)
-	txt := modeStatus + fileStatus + copyStatus + undoStatus + spaces + cursorStatus
+	if len(redoStack) > 0 {
+		redoStatus = " [Redo]"
+	}
+
+	if pendingCount > 0 {
+		countStatus = strconv.Itoa(pendingCount) + " "
+	}
+
+	leftStatus := modeStatus + fileStatus + copyStatus + undoStatus + redoStatus
+	rightStatus := countStatus + cursorStatus
+	spaces := strings.Repeat(" ", max(COLS-len(leftStatus)-len(rightStatus), 0))
+	txt := leftStatus + spaces + rightStatus
 
 	printMessage(0, ROWS, termbox.ColorBlack, termbox.ColorWhite, txt)
 }
