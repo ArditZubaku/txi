@@ -15,7 +15,7 @@ func processKeyPress() {
 	case keyEvent.Key == termbox.KeyEsc:
 		esc()
 	case keyEvent.Ch != 0:
-		handleCharKey(keyEvent, lineLen)
+		handleCharKey(keyEvent)
 	default:
 		handleSpecialKey(keyEvent, lineLen)
 	}
@@ -23,21 +23,21 @@ func processKeyPress() {
 	lastKeyPressed = keyEvent.Ch
 }
 
-func handleCharKey(keyEvent termbox.Event, lineLen int) {
+func handleCharKey(keyEvent termbox.Event) {
 	switch mode {
 	case EditMode:
 		insertRune(keyEvent)
-		modified = true
 	case ReadMode:
 		handleReadModeChar(keyEvent)
-		if currentCol > lineLen {
+		// recomputed: a delete may have shortened the line under the cursor
+		if lineLen := buf.RuneLen(currentRow); currentCol > lineLen {
 			currentCol = lineLen
 		}
 	}
 }
 
-// readModeActions dispatches the single-key vim motions; 'g' is handled
-// separately below since it can start a "gg" chord.
+// readModeActions dispatches the single-key vim motions; keys that start a
+// chord are held pending instead, see chordActions.
 var readModeActions = map[rune]func(){
 	'G': goToBottom,
 	'I': goToStartOfLine,
@@ -52,22 +52,37 @@ var readModeActions = map[rune]func(){
 	'e': endOfWord,
 	'q': closeEditor,
 	'i': editBeforeWord,
+	'x': deleteRune,
 }
 
+var chordActions = map[[2]rune]func(){
+	{'g', 'g'}: goToTop,
+	{'d', 'd'}: deleteLine,
+	{'d', 'w'}: deleteWord,
+	{'d', 'e'}: deleteToWordEnd,
+}
+
+// chordPrefixes do nothing on their own; they wait for a second key.
+var chordPrefixes = map[rune]bool{'g': true, 'd': true}
+
 func handleReadModeChar(keyEvent termbox.Event) {
-	// NOTE: VIM motions for scrolling
-	if keyEvent.Ch == 'g' {
-		if lastCh == 'g' && time.Since(lastChTime) < chordTimeout {
-			// second 'g' of "gg" arrived in time - jump to the top
-			goToTop()
+	if lastCh != 0 && time.Since(lastChTime) < chordTimeout {
+		if action, ok := chordActions[[2]rune{lastCh, keyEvent.Ch}]; ok {
+			action()
 			lastCh = 0
 			return
 		}
-		lastChTime = time.Now()
-	} else if action, ok := readModeActions[keyEvent.Ch]; ok {
+	}
+
+	if chordPrefixes[keyEvent.Ch] {
+		lastCh, lastChTime = keyEvent.Ch, time.Now()
+		return
+	}
+
+	lastCh = 0
+	if action, ok := readModeActions[keyEvent.Ch]; ok {
 		action()
 	}
-	lastCh = keyEvent.Ch
 }
 
 var specialKeyActions = map[termbox.Key]func(){
@@ -111,7 +126,6 @@ func insertRuneNTimes(keyEvent termbox.Event, n int) {
 	for range n {
 		insertRune(keyEvent)
 	}
-	modified = true
 }
 
 func esc() {
@@ -255,7 +269,10 @@ func stepForward(row, col int) (int, int) {
 }
 
 func nextWord() {
-	row, col := currentRow, currentCol
+	currentRow, currentCol = nextWordFrom(currentRow, currentCol)
+}
+
+func nextWordFrom(row, col int) (int, int) {
 	startClass := classOf(charAt(row, col))
 
 	if startClass != ClassSpace {
@@ -276,12 +293,14 @@ func nextWord() {
 		row, col = nr, nc
 	}
 
-	currentRow, currentCol = row, col
+	return row, col
 }
 
 func endOfWord() {
-	row, col := currentRow, currentCol
+	currentRow, currentCol = endOfWordFrom(currentRow, currentCol)
+}
 
+func endOfWordFrom(row, col int) (int, int) {
 	// always advance at least one position, so pressing 'e' at the end of
 	// a word moves to the end of the next one instead of staying put
 	row, col = stepForward(row, col)
@@ -303,7 +322,7 @@ func endOfWord() {
 		row, col = nr, nc
 	}
 
-	currentRow, currentCol = row, col
+	return row, col
 }
 
 func stepBackward(row, col int) (int, int) {
