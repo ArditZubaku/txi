@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -204,7 +205,7 @@ func (b *Buffer) raw(i int) []byte {
 	return line
 }
 
-// Line's result is owned by the Buffer; copy before modifying (see SetLine).
+// Line 's result is owned by the Buffer; copy before modifying (see SetLine).
 func (b *Buffer) Line(i int) []rune {
 	if i < 0 || i >= b.count {
 		return nil
@@ -255,4 +256,92 @@ func (b *Buffer) SetLine(i int, line []rune) {
 	if b.cacheOK && b.cacheRow == i {
 		b.cacheOK = false
 	}
+}
+
+// InsertRune inserts ch at col in line i. The first insert into an unedited
+// line has to copy it out of the read window, but from then on the line grows
+// amortized in the overlay, so typing a run of characters into it does not
+// reallocate on every keystroke.
+func (b *Buffer) InsertRune(i, col int, ch rune) {
+	line := b.Line(i)
+	col = min(max(col, 0), len(line))
+
+	if edited, ok := b.overlay[i]; ok {
+		b.overlay[i] = slices.Insert(edited, col, ch)
+		return
+	}
+
+	updated := make([]rune, len(line)+1)
+	copy(updated, line[:col])
+	updated[col] = ch
+	copy(updated[col+1:], line[col:])
+	b.SetLine(i, updated)
+}
+
+// DeleteRunes removes runes [from, to) from line i. An already-edited line is
+// compacted in place; an unedited one is copied out at its new, shorter length,
+// so a delete never allocates more than the line it shrinks.
+func (b *Buffer) DeleteRunes(i, from, to int) {
+	line := b.Line(i)
+	from, to = max(from, 0), min(to, len(line))
+	if from >= to {
+		return
+	}
+
+	if edited, ok := b.overlay[i]; ok {
+		b.overlay[i] = append(edited[:from], edited[to:]...)
+		return
+	}
+
+	updated := make([]rune, len(line)-(to-from))
+	copy(updated, line[:from])
+	copy(updated[from:], line[to:])
+	b.SetLine(i, updated)
+}
+
+// DeleteLine drops line i by compacting the index in place and re-keying the
+// overlay, so nothing proportional to the rest of the file is rebuilt. The
+// deleted bytes stay on disk, simply unreferenced by the index.
+func (b *Buffer) DeleteLine(i int) {
+	if i < 0 || i >= b.count {
+		return
+	}
+	b.cacheOK = false
+
+	// VIM leaves an empty line behind rather than an empty buffer
+	if b.count == 1 {
+		b.overlay[i] = b.overlay[i][:0]
+		return
+	}
+
+	// A line ends where the next one starts, so dropping an index entry would
+	// hand the deleted bytes to the line above it. Pin that line into the
+	// overlay instead, where its content no longer depends on the index.
+	if i > 0 {
+		if _, ok := b.overlay[i-1]; !ok {
+			b.overlay[i-1] = slices.Clone(b.Line(i - 1))
+		}
+	}
+
+	b.starts = append(b.starts[:i], b.starts[i+1:]...)
+	b.count--
+
+	delete(b.overlay, i)
+	if len(b.overlay) > 0 {
+		shifted := make([]int, 0, len(b.overlay))
+		for row := range b.overlay {
+			if row > i {
+				shifted = append(shifted, row)
+			}
+		}
+		// ascending, so each line moves into a slot already vacated
+		slices.Sort(shifted)
+		for _, row := range shifted {
+			b.overlay[row-1] = b.overlay[row]
+			delete(b.overlay, row)
+		}
+	}
+
+	// window line numbers no longer match the file after the shift
+	b.winFrom, b.winTo = -1, -1
 }
