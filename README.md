@@ -17,11 +17,14 @@ go build -o txi .
 - **Saving** — `Ctrl-S`, in either mode. The buffer is streamed to a temporary file in the same directory and renamed over the target, so a failed write cannot truncate the original; untouched lines are copied as raw bytes, so a save costs no more memory than scrolling does. File permissions, CRLF line endings on untouched lines, and a missing trailing newline are all preserved.
 - **Deleting** — `x`, `dw`, `de`, `db` and `dd` in Normal mode, `Backspace` in Insert mode, all in place: a line delete compacts the line index rather than rebuilding it, and a character delete reuses the edited line's own backing array, so deleting never costs more memory than the text it removes.
 - **Line structure** — `o`/`O` open a line, `Enter` splits one at the cursor and `Backspace` at column 0 joins it back. Each shifts the line index in place rather than rebuilding it, and a split copies only the tail: the half before the cursor keeps the array it already had.
+- **Yank and put** — `yy`, `yw`, `ye` and `yb` copy into VIM's unnamed register, which the delete operators fill too, and `p`/`P` put it back after or before the cursor. A line yank puts whole lines below or above the cursor; a word yank puts the run of characters back into the line the cursor is on.
+- **Undo and redo** — `u` and `Ctrl-R`, with an insert session (from `i` to `Esc`) undone in one step the way VIM does it. Nothing snapshots the buffer: a change remembers only the lines the command actually touched, so the undo history costs the text that was edited rather than the size of the file. The last 500 changes are kept.
+- **Counts** — a command can be prefixed with a repeat count, as in `3j`, `3x`, `2dd` or `yy3p`. Commands where the count says *how much text* rather than *how many times* (`x`, `dd`, `yy`, `p`, `P`) act on that much text in a single step, so one `u` takes the whole thing back.
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Relative line numbers** — a gutter on the left showing each line's distance from the cursor, with the cursor's own line carrying its absolute number instead, like VIM's `number`/`relativenumber` pair. It widens with the buffer's line count (four columns until the count reaches four digits) and the text and horizontal scrolling start after it.
 - **Cursor line highlight** — the line the cursor is on is drawn as a dark gray band across the full width of the terminal, gutter included, like VIM's `cursorline`, with its line number in yellow.
 - **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
-- **Status bar** — current mode, file name, line count, modified/saved state, and cursor row/column.
+- **Status bar** — current mode, file name, line count, modified/saved state, whether the register and the undo/redo stacks hold anything, the count being typed, and cursor row/column.
 - **Constant-memory file loading** — the file is never held in memory. Opening it builds an index of where each line starts (8 bytes per line) and nothing else; lines are read through one fixed 64KB window and decoded to runes only when they're on screen or under the cursor. Opening a 23MB file of 202,000 lines and jumping to the end costs **8.8MB of RSS**, and that figure doesn't move however far you scroll — 5.2MB of it is the Go runtime floor a one-line file also pays, so the file itself accounts for 2.6MB. See [Memory model](#memory-model).
 
 ## VIM motions implemented
@@ -37,6 +40,13 @@ go build -o txi .
 | `de` | Normal | delete to the end of the current word (stops at end of line) |
 | `db` | Normal | delete back to the start of the previous word (stops at the start of the line) |
 | `dd` | Normal | delete the current line |
+| `yy` | Normal | yank the current line |
+| `yw` `ye` `yb` | Normal | yank over the matching word motion (stops at the ends of the line) |
+| `p` | Normal | put the register after the cursor, or on the line below if it holds whole lines |
+| `P` | Normal | put the register before the cursor, or on the line above |
+| `u` | Normal | undo the last change |
+| `Ctrl-R` | Normal | redo the last undone change |
+| `1`–`9` | Normal | start a count for the next command, e.g. `3p` |
 | `Backspace` | Insert | delete the character before the cursor, joining onto the line above at column 0 |
 | `Enter` | Insert | split the line at the cursor (in Normal mode it moves down a line) |
 | `gg` | Normal | jump to the top of the buffer |
@@ -100,7 +110,7 @@ shrinks back. Only the index scales with file size, at 8 bytes per line.
 - Saving under a different name (`:w other.txt`), and any error reporting beyond a log line if the save fails
 - Visual mode
 - Search (`/`, `?`, `n`, `N`)
-- The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ..., and counts like `3dd`) — only `x`, `dw`, `de`, `db` and `dd` exist so far, and they stop at the line boundary instead of running onto the next line
-- Yank/paste (`y`, `p`) and registers
-- Undo/redo (`u`, `Ctrl-R`) — `undoBuf` is scaffolded in `globals.go` and shown in the status bar as `[Undo]`, but nothing populates it yet. Same story for `copyBuf`/`[Copy]`.
+- The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ...) — only `x`, `dw`, `de`, `db`, `dd` and the `y` operators exist so far, and they stop at the line boundary instead of running onto the next line
+- Named registers (`"a`) — there is only the unnamed one
+- Counts in front of an operator's motion (`d3w`) — a count goes before the whole command (`3dw`)
 - Marks and macros
