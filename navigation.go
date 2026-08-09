@@ -11,110 +11,113 @@ func processKeyPress() {
 	keyEvent := getKey()
 	lineLen := buf.RuneLen(currentRow)
 
-	if keyEvent.Key == termbox.KeyEsc {
+	switch {
+	case keyEvent.Key == termbox.KeyEsc:
 		esc()
-	} else {
-		if keyEvent.Ch != 0 {
-			// handle characters
-			switch mode {
-			case EditMode:
-				insertRune(keyEvent)
-				modified = true
-			case ReadMode:
-				// NOTE: VIM motions for scrolling
-				if keyEvent.Ch == 103 && lastCh == 103 && time.Since(lastChTime) < chordTimeout {
-					// second 'g' of "gg" arrived in time - jump to the top
-					goToTop()
-					lastCh = 0
-				} else {
-					switch keyEvent.Ch {
-					case 'g':
-						lastChTime = time.Now()
-					case 'G':
-						goToBottom()
-					case 'I':
-						goToStartOfLine()
-					case 'A':
-						goToEndOfLine()
-					case 'a':
-						editAfterWord()
-					case 'h':
-						left()
-					case 'j':
-						down()
-					case 'k':
-						up()
-					case 'l':
-						right()
-					case 'w':
-						nextWord()
-					case 'b':
-						prevWord()
-					case 'e':
-						endOfWord()
-					case 'q':
-						close()
-					case 'i':
-						editBeforeWord()
-					}
-					lastCh = keyEvent.Ch
-				}
-
-				if currentCol > lineLen {
-					currentCol = lineLen
-				}
-			}
-		} else {
-			lastCh = 0 // any special key cancels a pending "g"
-
-			switch keyEvent.Key {
-			case termbox.KeyTab:
-				if mode == EditMode {
-					for range 4 {
-						insertRune(keyEvent)
-					}
-					modified = true
-				}
-			case termbox.KeySpace:
-				if mode == EditMode {
-					insertRune(keyEvent)
-					modified = true
-				}
-			case termbox.KeyArrowUp:
-				up()
-			case termbox.KeyCtrlU:
-				pageUp()
-			case termbox.KeyArrowDown:
-				down()
-			case termbox.KeyCtrlD:
-				pageDown() // this is a vim motion actually, but it far easier to handle it like this
-			case termbox.KeyArrowLeft:
-				left()
-			case termbox.KeyArrowRight:
-				right()
-			case termbox.KeyHome:
-				currentCol = 0
-			case termbox.KeyEnd:
-				currentCol = lineLen
-			case termbox.KeyPgup:
-				pageUp()
-			case termbox.KeyPgdn:
-				pageDown()
-			}
-
-			if currentCol > lineLen {
-				currentCol = lineLen
-			}
-		}
+	case keyEvent.Ch != 0:
+		handleCharKey(keyEvent, lineLen)
+	default:
+		handleSpecialKey(keyEvent, lineLen)
 	}
 
 	lastKeyPressed = keyEvent.Ch
 }
 
+func handleCharKey(keyEvent termbox.Event, lineLen int) {
+	switch mode {
+	case EditMode:
+		insertRune(keyEvent)
+		modified = true
+	case ReadMode:
+		handleReadModeChar(keyEvent)
+		if currentCol > lineLen {
+			currentCol = lineLen
+		}
+	}
+}
+
+// readModeActions dispatches the single-key vim motions; 'g' is handled
+// separately below since it can start a "gg" chord.
+var readModeActions = map[rune]func(){
+	'G': goToBottom,
+	'I': goToStartOfLine,
+	'A': goToEndOfLine,
+	'a': editAfterWord,
+	'h': left,
+	'j': down,
+	'k': up,
+	'l': right,
+	'w': nextWord,
+	'b': prevWord,
+	'e': endOfWord,
+	'q': closeEditor,
+	'i': editBeforeWord,
+}
+
+func handleReadModeChar(keyEvent termbox.Event) {
+	// NOTE: VIM motions for scrolling
+	if keyEvent.Ch == 'g' {
+		if lastCh == 'g' && time.Since(lastChTime) < chordTimeout {
+			// second 'g' of "gg" arrived in time - jump to the top
+			goToTop()
+			lastCh = 0
+			return
+		}
+		lastChTime = time.Now()
+	} else if action, ok := readModeActions[keyEvent.Ch]; ok {
+		action()
+	}
+	lastCh = keyEvent.Ch
+}
+
+var specialKeyActions = map[termbox.Key]func(){
+	termbox.KeyArrowUp:    up,
+	termbox.KeyCtrlU:      pageUp,
+	termbox.KeyArrowDown:  down,
+	termbox.KeyCtrlD:      pageDown, // this is a vim motion actually, but it far easier to handle it like this
+	termbox.KeyArrowLeft:  left,
+	termbox.KeyArrowRight: right,
+	termbox.KeyPgup:       pageUp,
+	termbox.KeyPgdn:       pageDown,
+}
+
+func handleSpecialKey(keyEvent termbox.Event, lineLen int) {
+	lastCh = 0 // any special key cancels a pending "g"
+
+	switch keyEvent.Key {
+	case termbox.KeyTab:
+		insertRuneNTimes(keyEvent, 4)
+	case termbox.KeySpace:
+		insertRuneNTimes(keyEvent, 1)
+	case termbox.KeyHome:
+		currentCol = 0
+	case termbox.KeyEnd:
+		currentCol = lineLen
+	default:
+		if action, ok := specialKeyActions[keyEvent.Key]; ok {
+			action()
+		}
+	}
+
+	if currentCol > lineLen {
+		currentCol = lineLen
+	}
+}
+
+func insertRuneNTimes(keyEvent termbox.Event, n int) {
+	if mode != EditMode {
+		return
+	}
+	for range n {
+		insertRune(keyEvent)
+	}
+	modified = true
+}
+
 func esc() {
 	mode = ReadMode
 	if currentCol > 0 && (lastKeyPressed == 'i' || lastKeyPressed == 'a') {
-		currentCol = currentCol - 1
+		currentCol--
 	}
 	setCursorShape(CursorDefault)
 }
@@ -193,7 +196,7 @@ func goToStartOfLine() {
 }
 
 func editAfterWord() {
-	currentCol = currentCol + 1
+	currentCol++
 	mode = EditMode
 	setCursorShape(CursorBlinkingBar)
 }
@@ -203,7 +206,7 @@ func editBeforeWord() {
 	setCursorShape(CursorBlinkingBar)
 }
 
-func close() {
+func closeEditor() {
 	buf.Close()
 	termbox.Close()
 	os.Exit(0)

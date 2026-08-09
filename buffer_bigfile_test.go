@@ -22,7 +22,7 @@ func bigFile(t *testing.T, lines int) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := bufio.NewWriter(f)
 	for i := range lines {
@@ -30,14 +30,14 @@ func bigFile(t *testing.T, lines int) string {
 		case 0:
 			// empty line
 		case 13:
-			fmt.Fprintf(w, "%d %s", i, strings.Repeat("ünïcödé ", 9))
+			_, _ = fmt.Fprintf(w, "%d %s", i, strings.Repeat("ünïcödé ", 9))
 		case 41:
 			// longer than the whole window, to force the oversize path
-			fmt.Fprintf(w, "%d %s", i, strings.Repeat("x", windowBytes+512))
+			_, _ = fmt.Fprintf(w, "%d %s", i, strings.Repeat("x", windowBytes+512))
 		default:
-			fmt.Fprintf(w, "%d %s", i, strings.Repeat("abcdefgh ", 1+i%14))
+			_, _ = fmt.Fprintf(w, "%d %s", i, strings.Repeat("abcdefgh ", 1+i%14))
 		}
-		w.WriteByte('\n')
+		_ = w.WriteByte('\n')
 	}
 	if err := w.Flush(); err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func fullDecode(t *testing.T, path string) [][]rune {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var lines [][]rune
 	sc := bufio.NewScanner(f)
