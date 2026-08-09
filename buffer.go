@@ -363,6 +363,23 @@ func (b *Buffer) DeleteRunes(i, from, to int) {
 	b.SetLine(i, updated)
 }
 
+// JoinLine appends line i+1 to line i and drops it. The result has to live in
+// the overlay: the two lines are contiguous on disk apart from the terminator
+// between them, and the index cannot express a line with a hole in it.
+func (b *Buffer) JoinLine(i int) {
+	if i < 0 || i+1 >= b.count {
+		return
+	}
+
+	line, ok := b.overlay[i]
+	if !ok {
+		line = slices.Clone(b.Line(i))
+	}
+
+	b.overlay[i] = append(line, b.Line(i+1)...)
+	b.DeleteLine(i + 1)
+}
+
 // DeleteLine drops line i by compacting the index in place and re-keying the
 // overlay, so nothing proportional to the rest of the file is rebuilt. The
 // deleted bytes stay on disk, simply unreferenced by the index.
