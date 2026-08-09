@@ -40,6 +40,22 @@ func deleteToWordEnd() {
 	deleteTo(row, col+1)
 }
 
+// deleteToPrevWord is 'db': unlike dw/de it deletes behind the cursor, so the
+// cursor follows the text back.
+func deleteToPrevWord() {
+	row, col := prevWordFrom(currentRow, currentCol)
+	if row != currentRow {
+		col = 0
+	}
+	if col >= currentCol {
+		return
+	}
+
+	buf.DeleteRunes(currentRow, col, currentCol)
+	currentCol = col
+	modified = true
+}
+
 func deleteTo(row, col int) {
 	if row != currentRow {
 		col = buf.RuneLen(currentRow)
@@ -49,6 +65,30 @@ func deleteTo(row, col int) {
 	}
 
 	buf.DeleteRunes(currentRow, currentCol, col)
+	modified = true
+}
+
+// backspace deletes behind the cursor in Edit mode, joining onto the line
+// above when there is nothing left to delete on this one. In Read mode it is
+// VIM's plain leftwards move.
+func backspace() {
+	if mode != EditMode {
+		left()
+		return
+	}
+
+	switch {
+	case currentCol > 0:
+		currentCol--
+		buf.DeleteRunes(currentRow, currentCol, currentCol+1)
+	case currentRow > 0:
+		currentRow--
+		currentCol = buf.RuneLen(currentRow)
+		buf.JoinLine(currentRow)
+	default:
+		return
+	}
+
 	modified = true
 }
 

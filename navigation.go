@@ -60,6 +60,7 @@ var chordActions = map[[2]rune]func(){
 	{'d', 'd'}: deleteLine,
 	{'d', 'w'}: deleteWord,
 	{'d', 'e'}: deleteToWordEnd,
+	{'d', 'b'}: deleteToPrevWord,
 }
 
 // chordPrefixes do nothing on their own; they wait for a second key.
@@ -87,6 +88,8 @@ func handleReadModeChar(keyEvent termbox.Event) {
 
 var specialKeyActions = map[termbox.Key]func(){
 	termbox.KeyCtrlS:      saveFile,
+	termbox.KeyBackspace:  backspace,
+	termbox.KeyBackspace2: backspace,
 	termbox.KeyArrowUp:    up,
 	termbox.KeyCtrlU:      pageUp,
 	termbox.KeyArrowDown:  down,
@@ -115,7 +118,8 @@ func handleSpecialKey(keyEvent termbox.Event, lineLen int) {
 		}
 	}
 
-	if currentCol > lineLen {
+	// recomputed: a backspace may have joined this line onto the one above
+	if lineLen := buf.RuneLen(currentRow); currentCol > lineLen {
 		currentCol = lineLen
 	}
 }
@@ -337,8 +341,10 @@ func stepBackward(row, col int) (int, int) {
 }
 
 func prevWord() {
-	row, col := currentRow, currentCol
+	currentRow, currentCol = prevWordFrom(currentRow, currentCol)
+}
 
+func prevWordFrom(row, col int) (int, int) {
 	// step off the current word first, so pressing 'b' from a word-start
 	// lands on the previous word instead of itself
 	row, col = stepBackward(row, col)
@@ -360,5 +366,5 @@ func prevWord() {
 		row, col = pr, pc
 	}
 
-	currentRow, currentCol = row, col
+	return row, col
 }
