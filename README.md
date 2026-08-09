@@ -17,7 +17,7 @@ go build -o txi .
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
 - **Status bar** — current mode, file name, line count, modified/saved state, and cursor row/column.
-- **Large-file-friendly loading** — `textBuf` is pre-sized from the file's byte length to avoid repeated reallocation, and the line scanner accepts lines beyond the default 64KB.
+- **Constant-memory file loading** — the file is never held in memory. Opening it builds an index of where each line starts (8 bytes per line) and nothing else; lines are read through one fixed 64KB window and decoded to runes only when they're on screen or under the cursor. Opening a 23MB file of 202,000 lines and jumping to the end costs **8.8MB of RSS**, and that figure doesn't move however far you scroll — 5.2MB of it is the Go runtime floor a one-line file also pays, so the file itself accounts for 2.6MB. See [Memory model](#memory-model).
 
 ## VIM motions implemented
 
@@ -38,6 +38,32 @@ go build -o txi .
 | `Esc` | Insert | return to Normal mode (cursor steps back a column, VIM-style) |
 
 Arrow keys, `Home`, `End`, `PgUp`, and `PgDn` also work in either mode.
+
+## Memory model
+
+The file is never loaded. It stays on disk with its handle open, and `buffer.go`
+holds three things, none of which scale with how much of it you have visited:
+
+| | held | 23MB / 202k-line file |
+| --- | --- | --- |
+| Line index (`starts`) | one byte offset per line | ~1.6MB |
+| Read window (`win`) | raw bytes around the cursor | 64KB |
+| Decoded line cache | the one line under the cursor | a few hundred bytes |
+
+Opening a file makes a single indexing pass with `ReadAt` through one reusable 1MB
+buffer, recording where each line begins. Reading through a small buffer rather than
+walking an `mmap` is deliberate: faulting a mapping in to find its newlines makes
+every page of the file resident, and macOS will not hand those pages back
+(`MADV_FREE_REUSABLE` is `EPERM` on file mappings). A read leaves the data in the OS
+page cache without charging it to the process.
+
+Everything after that pass is random access through the index: `G` and `gg` are
+O(1), the status bar's line count is exact, and displaying a line is one `pread`
+into the window when the line falls outside it. Lines edited in Insert mode live in
+an overlay map that shadows the file, so an edit is never lost when the window moves.
+
+A line wider than the window grows it for as long as that line is on screen, then it
+shrinks back. Only the index scales with file size, at 8 bytes per line.
 
 ### Goals not yet implemented
 
