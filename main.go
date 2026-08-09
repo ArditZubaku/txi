@@ -57,6 +57,22 @@ func runEditor() {
 	}
 }
 
+// The line under the cursor is drawn as a light gray band, so it needs a dark
+// foreground to stay readable on terminals whose default one is light.
+const (
+	cursorLineFg = termbox.ColorBlack
+	cursorLineBg = termbox.ColorLightGray
+)
+
+// highlightRow paints a whole terminal row, gutter included and past the end of
+// the text, so the cursor's line reads as one unbroken band. The characters
+// drawn over it with SetChar keep the colours painted here.
+func highlightRow(row int) {
+	for col := 0; col < COLS; col++ {
+		termbox.SetCell(col, row, ' ', cursorLineFg, cursorLineBg)
+	}
+}
+
 func displayTextBuffer() {
 	bufLen := buf.LineCount()
 	gutter := gutterWidth(bufLen)
@@ -74,11 +90,12 @@ func displayTextBuffer() {
 			continue
 		}
 
-		numberColor := termbox.ColorBlue
+		numberColor, background := termbox.ColorBlue, termbox.ColorDefault
 		if textBufRow == currentRow {
-			numberColor = termbox.ColorYellow
+			numberColor, background = cursorLineFg, cursorLineBg
+			highlightRow(row)
 		}
-		printMessage(0, row, numberColor, termbox.ColorDefault, lineNumberLabel(textBufRow, currentRow, gutter))
+		printMessage(0, row, numberColor, background, lineNumberLabel(textBufRow, currentRow, gutter))
 
 		line := buf.Line(textBufRow)
 		lineLen := len(line)
