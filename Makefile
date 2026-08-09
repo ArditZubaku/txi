@@ -3,6 +3,9 @@
 run:
 	@go build -o txi . && (trap 'go clean; exit' INT TERM EXIT; ./txi main.go) # runs clean no matter how the program exits
 
+build:
+	@go build -o txi .
+
 lint:
 	docker run --rm \
 		-v $$(pwd):/app \
