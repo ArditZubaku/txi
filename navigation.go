@@ -66,6 +66,9 @@ var readModeActions = map[rune]func(){
 	'x': deleteRune,
 	'o': openLineBelow,
 	'O': openLineAbove,
+	'p': pasteAfter,
+	'P': pasteBefore,
+	'u': undo,
 }
 
 var chordActions = map[[2]rune]func(){
@@ -74,29 +77,65 @@ var chordActions = map[[2]rune]func(){
 	{'d', 'w'}: deleteWord,
 	{'d', 'e'}: deleteToWordEnd,
 	{'d', 'b'}: deleteToPrevWord,
+	{'y', 'y'}: yankLine,
+	{'y', 'w'}: yankWord,
+	{'y', 'e'}: yankToWordEnd,
+	{'y', 'b'}: yankToPrevWord,
 }
 
 // chordPrefixes do nothing on their own; they wait for a second key.
-var chordPrefixes = map[rune]bool{'g': true, 'd': true}
+var chordPrefixes = map[rune]bool{'g': true, 'd': true, 'y': true}
+
+// A count-aware command reads count() itself, because the count says how much
+// text it works on rather than how many times it runs; everything else is
+// simply run that many times.
+var (
+	countAwareKeys   = map[rune]bool{'x': true, 'p': true, 'P': true}
+	countAwareChords = map[[2]rune]bool{{'d', 'd'}: true, {'y', 'y'}: true}
+)
 
 func handleReadModeChar(keyEvent termbox.Event) {
+	ch := keyEvent.Ch
+
+	// a leading '0' is VIM's jump to column 0, not the start of a count
+	if (ch >= '1' && ch <= '9') || (ch == '0' && pendingCount > 0) {
+		pendingCount = min(pendingCount*10+int(ch-'0'), maxCount)
+		return
+	}
+
 	if lastCh != 0 && time.Since(lastChTime) < chordTimeout {
-		if action, ok := chordActions[[2]rune{lastCh, keyEvent.Ch}]; ok {
-			action()
+		chord := [2]rune{lastCh, ch}
+		if action, ok := chordActions[chord]; ok {
 			lastCh = 0
+			runCommand(action, countAwareChords[chord])
 			return
 		}
 	}
 
-	if chordPrefixes[keyEvent.Ch] {
-		lastCh, lastChTime = keyEvent.Ch, time.Now()
+	if chordPrefixes[ch] {
+		lastCh, lastChTime = ch, time.Now()
 		return
 	}
 
 	lastCh = 0
-	if action, ok := readModeActions[keyEvent.Ch]; ok {
-		action()
+	if action, ok := readModeActions[ch]; ok {
+		runCommand(action, countAwareKeys[ch])
 	}
+}
+
+func runCommand(action func(), countAware bool) {
+	cmdCount, pendingCount = max(pendingCount, 1), 0
+	defer func() { cmdCount = 1 }()
+
+	beginChange()
+	if countAware {
+		action()
+	} else {
+		for range cmdCount {
+			action()
+		}
+	}
+	endChange()
 }
 
 var specialKeyActions = map[termbox.Key]func(){
@@ -112,10 +151,11 @@ var specialKeyActions = map[termbox.Key]func(){
 	termbox.KeyArrowRight: right,
 	termbox.KeyPgup:       pageUp,
 	termbox.KeyPgdn:       pageDown,
+	termbox.KeyCtrlR:      redo,
 }
 
 func handleSpecialKey(keyEvent termbox.Event) {
-	lastCh = 0 // any special key cancels a pending "g"
+	lastCh, pendingCount = 0, 0 // any special key cancels a pending "g" or count
 
 	switch keyEvent.Key {
 	case termbox.KeyTab:
@@ -150,6 +190,8 @@ func esc() {
 		currentCol--
 	}
 	mode = ReadMode
+	lastCh, pendingCount = 0, 0
+	endChange()
 	clampCol()
 	setCursorShape(CursorDefault)
 }
@@ -236,6 +278,7 @@ func editBeforeWord() {
 }
 
 func enterEditMode() {
+	beginChange()
 	mode = EditMode
 	setCursorShape(CursorBlinkingBar)
 }
