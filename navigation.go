@@ -81,17 +81,18 @@ var chordActions = map[[2]rune]func(){
 	{'y', 'w'}: yankWord,
 	{'y', 'e'}: yankToWordEnd,
 	{'y', 'b'}: yankToPrevWord,
+	{'z', 'z'}: centerView,
 }
 
 // chordPrefixes do nothing on their own; they wait for a second key.
-var chordPrefixes = map[rune]bool{'g': true, 'd': true, 'y': true}
+var chordPrefixes = map[rune]bool{'g': true, 'd': true, 'y': true, 'z': true}
 
 // A count-aware command reads count() itself, because the count says how much
 // text it works on rather than how many times it runs; everything else is
 // simply run that many times.
 var (
 	countAwareKeys   = map[rune]bool{'x': true, 'p': true, 'P': true}
-	countAwareChords = map[[2]rune]bool{{'d', 'd'}: true, {'y', 'y'}: true}
+	countAwareChords = map[[2]rune]bool{{'d', 'd'}: true, {'y', 'y'}: true, {'z', 'z'}: true}
 )
 
 func handleReadModeChar(keyEvent termbox.Event) {
@@ -124,8 +125,8 @@ func handleReadModeChar(keyEvent termbox.Event) {
 }
 
 func runCommand(action func(), countAware bool) {
-	cmdCount, pendingCount = max(pendingCount, 1), 0
-	defer func() { cmdCount = 1 }()
+	cmdCount, hadCount, pendingCount = max(pendingCount, 1), pendingCount > 0, 0
+	defer func() { cmdCount, hadCount = 1, false }()
 
 	beginChange()
 	if countAware {
@@ -246,6 +247,18 @@ func pageDown() {
 	} else {
 		currentRow = buf.LineCount() - 1
 	}
+}
+
+// centerView is VIM's zz: the cursor's line is redrawn in the middle of the
+// window, keeping its column. A count names the line to centre on instead.
+// Near the bottom of the buffer the window is left hanging past the last line,
+// the way VIM does rather than pinning the last line to the bottom row.
+func centerView() {
+	if hadCount {
+		currentRow = min(count()-1, buf.LineCount()-1)
+		clampCol()
+	}
+	offsetRow = max(currentRow-ROWS/2, 0)
 }
 
 func goToTop() {

@@ -17,6 +17,7 @@ var (
 var (
 	pendingCount int
 	cmdCount     int
+	hadCount     bool // a count of 1 and no count at all mean different things to zz
 )
 
 const maxCount = 9999
