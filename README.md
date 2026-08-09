@@ -39,6 +39,8 @@ go build -o txi .
 | `G` | Normal | jump to the bottom of the buffer |
 | `I` | Normal | jump to start of line and enter Insert mode |
 | `A` | Normal | jump to end of line and enter Insert mode |
+| `o` | Normal | open an empty line below and enter Insert mode |
+| `O` | Normal | open an empty line above and enter Insert mode |
 | `i` | Normal | enter Insert mode before the cursor |
 | `a` | Normal | enter Insert mode after the cursor |
 | `Ctrl-S` | Either | save to the file that was opened |
@@ -73,6 +75,10 @@ an overlay map that shadows the file, so an edit is never lost when the window m
 Lifting a line into that overlay copies it once; every keystroke after that grows or
 shrinks it in place, so typing a word costs no allocation per character.
 
+Opening a line with `o`/`O` adds an index entry that borrows the offset of the line
+below it, which leaves every neighbouring line's extent exactly as it was; the new
+line itself is only ever read from the overlay that shadows it.
+
 Deleting a line drops its entry from the index and renumbers the overlay; the bytes
 themselves stay on disk, unreferenced. Because a line ends where the next one starts,
 the line *above* a deleted one would otherwise inherit its bytes, so that one line is
@@ -89,7 +95,7 @@ shrinks back. Only the index scales with file size, at 8 bytes per line.
 - Visual mode
 - Search (`/`, `?`, `n`, `N`)
 - The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ..., and counts like `3dd`) — only `x`, `dw`, `de`, `db` and `dd` exist so far, and they stop at the line boundary instead of running onto the next line
-- `o`/`O` and `Enter` — a line can be joined (`Backspace` at column 0) but not yet split
+- `Enter` — a line can be opened (`o`/`O`) and joined (`Backspace` at column 0) but not yet split at the cursor
 - Yank/paste (`y`, `p`) and registers
 - Undo/redo (`u`, `Ctrl-R`) — `undoBuf` is scaffolded in `globals.go` and shown in the status bar as `[Undo]`, but nothing populates it yet. Same story for `copyBuf`/`[Copy]`.
 - Marks and macros
