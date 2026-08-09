@@ -7,15 +7,23 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-// VIM's default palette, which keeps every token readable over the cursor
-// line's dark gray band as well as over the terminal's own background.
+// Related token classes are given neighbouring hues — magenta for the words
+// the language reserves, yellow for the names of things, cyan for what can be
+// called, red for literal numbers — so the screen reads as a few colour
+// families rather than a dozen unrelated colours. Every one of them is a
+// bright shade, which keeps it legible over the cursor line's dark gray band
+// as well as over the terminal's own background.
 const (
-	colorKeyword = termbox.ColorYellow
-	colorType    = termbox.ColorGreen
-	colorString  = termbox.ColorMagenta
-	colorNumber  = termbox.ColorCyan
-	colorComment = termbox.ColorLightBlue
-	colorPlain   = termbox.ColorDefault
+	colorKeyword  = termbox.ColorMagenta
+	colorConstant = termbox.ColorLightMagenta
+	colorType     = termbox.ColorYellow
+	colorEscape   = termbox.ColorLightYellow
+	colorFunction = termbox.ColorCyan
+	colorBuiltin  = termbox.ColorLightCyan
+	colorString   = termbox.ColorGreen
+	colorNumber   = termbox.ColorLightRed
+	colorComment  = termbox.ColorLightBlue
+	colorPlain    = termbox.ColorDefault
 )
 
 // Syntax is one language's lexical surface: enough to tell comments, strings,
@@ -28,6 +36,8 @@ type Syntax struct {
 	quotes      string
 	keywords    map[string]bool
 	types       map[string]bool
+	builtins    map[string]bool
+	constants   map[string]bool
 }
 
 func words(list string) map[string]bool {
@@ -47,9 +57,10 @@ var goSyntax = &Syntax{
 	keywords: words(`break case chan const continue default defer else fallthrough for
 		func go goto if import interface map package range return select struct switch type var`),
 	types: words(`any bool byte comparable complex64 complex128 error float32 float64
-		int int8 int16 int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr
-		append cap clear close complex copy delete imag len make max min new panic print println real recover
-		true false nil iota`),
+		int int8 int16 int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr`),
+	builtins: words(`append cap clear close complex copy delete imag len make max min new
+		panic print println real recover`),
+	constants: words(`true false nil iota`),
 }
 
 // One table covers the whole C-descended family: a keyword of a language the
@@ -64,12 +75,16 @@ var cSyntax = &Syntax{
 		export extern final finally fn for friend function goto if impl implements import in
 		instanceof interface let loop match mod move mut namespace new operator override package
 		private protected pub public readonly ref register return sizeof static struct super
-		switch synchronized template this throw throws trait try typedef typeof union unsafe
+		switch synchronized template throw throws trait try typedef typeof union unsafe
 		use using var virtual volatile where while with yield`),
-	types: words(`auto bool boolean byte char class double f32 f64 float i8 i16 i32 i64 i128
-		int isize long never number object short signed size_t str string symbol tuple type u8
-		u16 u32 u64 u128 uint unknown unsigned usize var void wchar_t
-		true false null nil none undefined NULL nullptr self Self String Vec Option Result`),
+	types: words(`auto bool boolean byte char double f32 f64 float i8 i16 i32 i64 i128
+		int isize long never number object short signed size_t str string symbol tuple u8
+		u16 u32 u64 u128 uint unknown unsigned usize void wchar_t
+		Self String Vec Option Result Promise Array Map Set Object String Number Boolean`),
+	builtins: words(`console printf sprintf fprintf scanf malloc calloc realloc free memcpy
+		memset strlen strcmp assert require println print panic drop clone unwrap
+		parseInt parseFloat isNaN JSON Math`),
+	constants: words(`true false null nil undefined NULL nullptr this self`),
 }
 
 // Anything whose comments start with '#'. Python and the shells share enough
@@ -81,9 +96,12 @@ var hashSyntax = &Syntax{
 		do done elif else esac except exit export fi finally for from function global if import
 		in is lambda local nonlocal not or pass raise readonly return select set shift source
 		then trap try unset until while with yield`),
-	types: words(`True False None self bool bytes dict float frozenset int list object set str tuple
-		abs all any enumerate isinstance len open print range super type zip
-		echo cd eval exec printf pwd read test true false`),
+	types: words(`bool bytes complex dict float frozenset int list object set str tuple type`),
+	builtins: words(`abs all any bin callable chr dir divmod enumerate eval exec filter format
+		getattr hasattr hex id input isinstance issubclass iter len map max min next open ord
+		print range repr reversed round setattr sorted sum super zip
+		cd echo printf pwd read shift source test unset`),
+	constants: words(`True False None NotImplemented Ellipsis self cls true false null`),
 }
 
 var extensionSyntax = map[string]*Syntax{
@@ -200,9 +218,7 @@ func (s *Syntax) highlight(line []rune, inBlock bool, out []termbox.Attribute) b
 			paint(out, start, i, colorComment)
 
 		case strings.ContainsRune(s.quotes, line[i]):
-			start := i
-			i = s.scanString(line, i)
-			paint(out, start, i, colorString)
+			i = s.scanString(line, i, out)
 
 		case line[i] >= '0' && line[i] <= '9':
 			start := i
@@ -216,13 +232,7 @@ func (s *Syntax) highlight(line []rune, inBlock bool, out []termbox.Attribute) b
 			for i < len(line) && isWordChar(line[i]) {
 				i++
 			}
-			word := string(line[start:i])
-			switch {
-			case s.keywords[word]:
-				paint(out, start, i, colorKeyword)
-			case s.types[word]:
-				paint(out, start, i, colorType)
-			}
+			paint(out, start, i, s.wordColor(string(line[start:i]), line, i))
 
 		default:
 			i++
@@ -230,6 +240,26 @@ func (s *Syntax) highlight(line []rune, inBlock bool, out []termbox.Attribute) b
 	}
 
 	return inBlock
+}
+
+// A name the language reserves nothing for is still worth colouring when it is
+// being called: an open bracket right after it is what tells a call from a
+// variable, which is as far as one line of context reaches.
+func (s *Syntax) wordColor(word string, line []rune, after int) termbox.Attribute {
+	switch {
+	case s.keywords[word]:
+		return colorKeyword
+	case s.constants[word]:
+		return colorConstant
+	case s.types[word]:
+		return colorType
+	case s.builtins[word]:
+		return colorBuiltin
+	case after < len(line) && line[after] == '(':
+		return colorFunction
+	default:
+		return colorPlain
+	}
 }
 
 func (s *Syntax) scanBlock(line []rune, i int) (int, bool) {
@@ -245,17 +275,26 @@ func (s *Syntax) scanBlock(line []rune, i int) (int, bool) {
 // An unterminated string runs to the end of the line rather than into the next
 // one: half-typed quotes are normal in Insert mode, and colouring the rest of
 // the file over one of them would be worse than getting the line wrong.
-func (s *Syntax) scanString(line []rune, i int) int {
+func (s *Syntax) scanString(line []rune, i int, out []termbox.Attribute) int {
 	quote := line[i]
+	start := i
+
 	for i++; i < len(line); i++ {
 		if line[i] == '\\' && quote != '`' {
-			i++
+			paint(out, start, i, colorString)
+			start = min(i+2, len(line))
+			paint(out, i, start, colorEscape)
+			i = start - 1
+
 			continue
 		}
 		if line[i] == quote {
+			paint(out, start, i+1, colorString)
+
 			return i + 1
 		}
 	}
+	paint(out, start, len(line), colorString)
 
 	return len(line)
 }
