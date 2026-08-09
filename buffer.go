@@ -41,8 +41,12 @@ const (
 )
 
 func newEmptyBuffer() *Buffer {
+	// starts stays parallel to count even with no file behind it, so inserting
+	// and deleting lines needs no separate empty-buffer case. Every line of
+	// such a buffer lives in the overlay, so the index is never read through.
 	return &Buffer{
 		count:   1,
+		starts:  []int64{0},
 		overlay: map[int][]rune{0: {}},
 		winFrom: -1,
 		winTo:   -1,
@@ -361,6 +365,46 @@ func (b *Buffer) DeleteRunes(i, from, to int) {
 	copy(updated, line[:from])
 	copy(updated[from:], line[to:])
 	b.SetLine(i, updated)
+}
+
+// InsertLine adds an empty line at index i, pushing the lines from i down. The
+// new line exists only in the overlay, but the index still needs an entry for
+// it: it gets the offset the line now below it starts at, which leaves the
+// extent of every neighbouring line exactly as it was. Nothing ever reads the
+// file through that duplicated offset, since the overlay always shadows it.
+func (b *Buffer) InsertLine(i int) {
+	if i < 0 || i > b.count {
+		return
+	}
+	b.cacheOK = false
+
+	off := b.size
+	switch {
+	case i < b.count:
+		off = b.starts[i]
+	case !b.endsWithNewline:
+		// the line above ends at size, not at a terminator before it
+		off++
+	}
+	b.starts = slices.Insert(b.starts, i, off)
+	b.count++
+
+	shifted := make([]int, 0, len(b.overlay))
+	for row := range b.overlay {
+		if row >= i {
+			shifted = append(shifted, row)
+		}
+	}
+	// descending, so each line moves into a slot already vacated
+	slices.SortFunc(shifted, func(a, b int) int { return b - a })
+	for _, row := range shifted {
+		b.overlay[row+1] = b.overlay[row]
+		delete(b.overlay, row)
+	}
+	b.overlay[i] = nil
+
+	// window line numbers no longer match the file after the shift
+	b.winFrom, b.winTo = -1, -1
 }
 
 // JoinLine appends line i+1 to line i and drops it. The result has to live in
