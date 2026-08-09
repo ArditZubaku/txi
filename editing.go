@@ -87,6 +87,20 @@ func startInsert() {
 	enterEditMode()
 }
 
+// enter splits the line at the cursor in Edit mode, the inverse of what
+// backspace does at column 0. In Read mode it is VIM's move to the line below.
+func enter() {
+	if mode != EditMode {
+		down()
+		return
+	}
+
+	buf.SplitLine(currentRow, currentCol)
+	currentRow++
+	currentCol = 0
+	modified = true
+}
+
 // backspace deletes behind the cursor in Edit mode, joining onto the line
 // above when there is nothing left to delete on this one. In Read mode it is
 // VIM's plain leftwards move.

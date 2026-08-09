@@ -90,6 +90,7 @@ func handleReadModeChar(keyEvent termbox.Event) {
 
 var specialKeyActions = map[termbox.Key]func(){
 	termbox.KeyCtrlS:      saveFile,
+	termbox.KeyEnter:      enter,
 	termbox.KeyBackspace:  backspace,
 	termbox.KeyBackspace2: backspace,
 	termbox.KeyArrowUp:    up,
