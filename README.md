@@ -12,7 +12,7 @@ go build -o txi .
 
 ## Features
 
-- **Modal editing** — a Read (Normal) mode for navigation and an Edit (Insert) mode for typing, with the terminal cursor changing shape (block vs. blinking bar) depending on mode.
+- **Modal editing** — a Read (Normal) mode for navigation and an Edit (Insert) mode for typing, with the terminal cursor changing shape (block vs. blinking bar) depending on mode. The cursor sits *on* a character in Normal mode, stopping at the last one on the line like VIM does; only Insert mode reaches the column past it, where appending happens.
 - **VIM-style navigation** — `hjkl`, word motions (`w`/`b`/`e`), line jumps (`I`/`A`), buffer jumps (`gg`/`G`); see the full list below.
 - **Saving** — `Ctrl-S`, in either mode. The buffer is streamed to a temporary file in the same directory and renamed over the target, so a failed write cannot truncate the original; untouched lines are copied as raw bytes, so a save costs no more memory than scrolling does. File permissions, CRLF line endings on untouched lines, and a missing trailing newline are all preserved.
 - **Deleting** — `x`, `dw`, `de`, `db` and `dd` in Normal mode, `Backspace` in Insert mode, all in place: a line delete compacts the line index rather than rebuilding it, and a character delete reuses the edited line's own backing array, so deleting never costs more memory than the text it removes.
@@ -28,7 +28,7 @@ go build -o txi .
 
 | Key | Mode | Action |
 | ----- | ------ | -------- |
-| `h` `j` `k` `l` | Normal | move left / down / up / right |
+| `h` `j` `k` `l` | Normal | move left / down / up / right, stopping at the ends of the line |
 | `w` | Normal | jump to the start of the next word |
 | `b` | Normal | jump to the start of the previous word |
 | `e` | Normal | jump to the end of the (next) word |
@@ -52,7 +52,9 @@ go build -o txi .
 | `Ctrl-D` | Either | scroll down half a screen |
 | `Esc` | Insert | return to Normal mode (cursor steps back a column, VIM-style) |
 
-Arrow keys, `Home`, `End`, `PgUp`, and `PgDn` also work in either mode.
+Arrow keys, `Home`, `End`, `PgUp`, and `PgDn` also work in either mode. Left and
+right stop at the ends of the line in Normal mode; in Insert mode they wrap onto
+the neighbouring line, so typing can run off one line onto the next.
 
 ## Memory model
 
