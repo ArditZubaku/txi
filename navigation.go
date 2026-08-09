@@ -9,7 +9,6 @@ import (
 
 func processKeyPress() {
 	keyEvent := getKey()
-	lineLen := buf.RuneLen(currentRow)
 
 	switch {
 	case keyEvent.Key == termbox.KeyEsc:
@@ -17,10 +16,25 @@ func processKeyPress() {
 	case keyEvent.Ch != 0:
 		handleCharKey(keyEvent)
 	default:
-		handleSpecialKey(keyEvent, lineLen)
+		handleSpecialKey(keyEvent)
 	}
+}
 
-	lastKeyPressed = keyEvent.Ch
+// maxCol is the rightmost column the cursor may occupy on a row. Read mode sits
+// *on* a rune, the way VIM's normal mode does, so it stops one short of the gap
+// past the last one that Edit mode needs in order to append.
+func maxCol(row int) int {
+	lineLen := buf.RuneLen(row)
+	if mode == ReadMode && lineLen > 0 {
+		return lineLen - 1
+	}
+	return lineLen
+}
+
+func clampCol() {
+	if m := maxCol(currentRow); currentCol > m {
+		currentCol = m
+	}
 }
 
 func handleCharKey(keyEvent termbox.Event) {
@@ -29,10 +43,7 @@ func handleCharKey(keyEvent termbox.Event) {
 		insertRune(keyEvent)
 	case ReadMode:
 		handleReadModeChar(keyEvent)
-		// recomputed: a delete may have shortened the line under the cursor
-		if lineLen := buf.RuneLen(currentRow); currentCol > lineLen {
-			currentCol = lineLen
-		}
+		clampCol()
 	}
 }
 
@@ -103,7 +114,7 @@ var specialKeyActions = map[termbox.Key]func(){
 	termbox.KeyPgdn:       pageDown,
 }
 
-func handleSpecialKey(keyEvent termbox.Event, lineLen int) {
+func handleSpecialKey(keyEvent termbox.Event) {
 	lastCh = 0 // any special key cancels a pending "g"
 
 	switch keyEvent.Key {
@@ -114,17 +125,14 @@ func handleSpecialKey(keyEvent termbox.Event, lineLen int) {
 	case termbox.KeyHome:
 		currentCol = 0
 	case termbox.KeyEnd:
-		currentCol = lineLen
+		currentCol = maxCol(currentRow)
 	default:
 		if action, ok := specialKeyActions[keyEvent.Key]; ok {
 			action()
 		}
 	}
 
-	// recomputed: a backspace may have joined this line onto the one above
-	if lineLen := buf.RuneLen(currentRow); currentCol > lineLen {
-		currentCol = lineLen
-	}
+	clampCol()
 }
 
 func insertRuneNTimes(keyEvent termbox.Event, n int) {
@@ -137,10 +145,12 @@ func insertRuneNTimes(keyEvent termbox.Event, n int) {
 }
 
 func esc() {
-	mode = ReadMode
-	if currentCol > 0 && (lastKeyPressed == 'i' || lastKeyPressed == 'a') {
+	// leaving Edit mode steps back off the gap the cursor was typing into
+	if mode == EditMode && currentCol > 0 {
 		currentCol--
 	}
+	mode = ReadMode
+	clampCol()
 	setCursorShape(CursorDefault)
 }
 

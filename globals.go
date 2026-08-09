@@ -40,5 +40,3 @@ const (
 	ReadMode Mode = iota
 	EditMode
 )
-
-var lastKeyPressed rune
