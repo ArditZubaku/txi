@@ -8,6 +8,7 @@ var (
 	currentRow, currentCol int
 	buf                    *Buffer
 	sourceFile             string
+	syntax                 *Syntax
 	mode                   Mode
 	modified               bool
 )
