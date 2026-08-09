@@ -14,6 +14,7 @@ go build -o txi .
 
 - **Modal editing** — a Read (Normal) mode for navigation and an Edit (Insert) mode for typing, with the terminal cursor changing shape (block vs. blinking bar) depending on mode.
 - **VIM-style navigation** — `hjkl`, word motions (`w`/`b`/`e`), line jumps (`I`/`A`), buffer jumps (`gg`/`G`); see the full list below.
+- **Deleting** — `x`, `dw`, `de` and `dd`, all in place: a line delete compacts the line index rather than rebuilding it, and a character delete reuses the edited line's own backing array, so deleting never costs more memory than the text it removes.
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
 - **Status bar** — current mode, file name, line count, modified/saved state, and cursor row/column.
@@ -27,6 +28,10 @@ go build -o txi .
 | `w` | Normal | jump to the start of the next word |
 | `b` | Normal | jump to the start of the previous word |
 | `e` | Normal | jump to the end of the (next) word |
+| `x` | Normal | delete the character under the cursor |
+| `dw` | Normal | delete to the start of the next word (stops at end of line) |
+| `de` | Normal | delete to the end of the current word (stops at end of line) |
+| `dd` | Normal | delete the current line |
 | `gg` | Normal | jump to the top of the buffer |
 | `G` | Normal | jump to the bottom of the buffer |
 | `I` | Normal | jump to start of line and enter Insert mode |
@@ -61,6 +66,14 @@ Everything after that pass is random access through the index: `G` and `gg` are
 O(1), the status bar's line count is exact, and displaying a line is one `pread`
 into the window when the line falls outside it. Lines edited in Insert mode live in
 an overlay map that shadows the file, so an edit is never lost when the window moves.
+Lifting a line into that overlay copies it once; every keystroke after that grows or
+shrinks it in place, so typing a word costs no allocation per character.
+
+Deleting a line drops its entry from the index and renumbers the overlay; the bytes
+themselves stay on disk, unreferenced. Because a line ends where the next one starts,
+the line *above* a deleted one would otherwise inherit its bytes, so that one line is
+copied into the overlay — the only allocation a `dd` makes, and it is bounded by the
+length of that single line rather than by the size of the file.
 
 A line wider than the window grows it for as long as that line is on screen, then it
 shrinks back. Only the index scales with file size, at 8 bytes per line.
@@ -71,7 +84,7 @@ shrinks back. Only the index scales with file size, at 8 bytes per line.
 - `:` command mode (`:w`, `:q`, `:wq`, ...) — `q` quits directly, with no unsaved-changes check
 - Visual mode
 - Search (`/`, `?`, `n`, `N`)
-- Operators and text objects (`d`, `c`, `x`, `dd`, `cw`, ...)
+- The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ..., and counts like `3dd`) — only `x`, `dw`, `de` and `dd` exist so far, and `dw`/`de` stop at the end of the line instead of joining the next one
 - Yank/paste (`y`, `p`) and registers
 - Undo/redo (`u`, `Ctrl-R`) — `undoBuf` is scaffolded in `globals.go` and shown in the status bar as `[Undo]`, but nothing populates it yet. Same story for `copyBuf`/`[Copy]`.
 - Marks and macros
