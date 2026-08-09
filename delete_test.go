@@ -256,6 +256,106 @@ func TestOperators(t *testing.T) {
 	}
 }
 
+// db deletes behind the cursor, so unlike dw/de the cursor moves with it.
+func TestDeleteToPrevWord(t *testing.T) {
+	cases := []struct {
+		name string
+		col  int
+		want string
+		col2 int
+	}{
+		{"from a word start", 8, "foo baz", 4},
+		{"mid-word", 6, "foo r baz", 4},
+		{"from end of line", 11, "foo bar ", 8},
+		{"at start of line does nothing", 0, "foo bar baz", 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := atCursor(t, "foo bar baz\nlast\n", 0, tc.col)
+
+			deleteToPrevWord()
+			wantLines(t, b, tc.want, "last")
+			if currentCol != tc.col2 {
+				t.Errorf("currentCol = %d, want %d", currentCol, tc.col2)
+			}
+		})
+	}
+}
+
+// db on the first column would walk onto the line above; operators stop there.
+func TestDeleteToPrevWordStopsAtTheLineStart(t *testing.T) {
+	b := atCursor(t, "foo\nbar\n", 1, 0)
+
+	deleteToPrevWord()
+	wantLines(t, b, "foo", "bar")
+	if modified {
+		t.Error("db at the start of a line reported a modification")
+	}
+}
+
+func TestJoinLine(t *testing.T) {
+	b := openBuffer(writeTemp(t, "a\nbb\nccc\n"))
+	defer b.Close()
+
+	b.JoinLine(0)
+	wantLines(t, b, "abb", "ccc")
+
+	b.JoinLine(0)
+	wantLines(t, b, "abbccc")
+
+	b.JoinLine(0) // no line below to join
+	wantLines(t, b, "abbccc")
+}
+
+func TestBackspace(t *testing.T) {
+	b := atCursor(t, "foo\nbar\n", 0, 2)
+	mode = EditMode
+
+	backspace()
+	wantLines(t, b, "fo", "bar")
+	if currentCol != 1 {
+		t.Fatalf("currentCol = %d, want 1", currentCol)
+	}
+}
+
+func TestBackspaceAtColumnZeroJoins(t *testing.T) {
+	b := atCursor(t, "foo\nbar\nbaz\n", 1, 0)
+	mode = EditMode
+
+	backspace()
+	wantLines(t, b, "foobar", "baz")
+	if currentRow != 0 || currentCol != 3 {
+		t.Fatalf("cursor at %d,%d, want 0,3", currentRow, currentCol)
+	}
+
+	// typing must continue where the join left off
+	buf.InsertRune(currentRow, currentCol, 'X')
+	wantLines(t, b, "fooXbar", "baz")
+}
+
+func TestBackspaceAtTheStartOfTheBuffer(t *testing.T) {
+	b := atCursor(t, "foo\n", 0, 0)
+	mode = EditMode
+
+	backspace()
+	wantLines(t, b, "foo")
+	if currentRow != 0 || currentCol != 0 || modified {
+		t.Errorf("cursor at %d,%d, modified = %v", currentRow, currentCol, modified)
+	}
+}
+
+func TestBackspaceInReadModeJustMoves(t *testing.T) {
+	b := atCursor(t, "foo\n", 0, 2)
+	mode = ReadMode
+
+	backspace()
+	wantLines(t, b, "foo")
+	if currentCol != 1 || modified {
+		t.Errorf("currentCol = %d, modified = %v", currentCol, modified)
+	}
+}
+
 func TestDeleteLineKeepsCursorInBuffer(t *testing.T) {
 	b := atCursor(t, "a\nbb\nccc\n", 2, 2)
 
