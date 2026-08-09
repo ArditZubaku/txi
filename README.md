@@ -16,6 +16,7 @@ go build -o txi .
 - **VIM-style navigation** — `hjkl`, word motions (`w`/`b`/`e`), line jumps (`I`/`A`), buffer jumps (`gg`/`G`); see the full list below.
 - **Saving** — `Ctrl-S`, in either mode. The buffer is streamed to a temporary file in the same directory and renamed over the target, so a failed write cannot truncate the original; untouched lines are copied as raw bytes, so a save costs no more memory than scrolling does. File permissions, CRLF line endings on untouched lines, and a missing trailing newline are all preserved.
 - **Deleting** — `x`, `dw`, `de`, `db` and `dd` in Normal mode, `Backspace` in Insert mode, all in place: a line delete compacts the line index rather than rebuilding it, and a character delete reuses the edited line's own backing array, so deleting never costs more memory than the text it removes.
+- **Line structure** — `o`/`O` open a line, `Enter` splits one at the cursor and `Backspace` at column 0 joins it back. Each shifts the line index in place rather than rebuilding it, and a split copies only the tail: the half before the cursor keeps the array it already had.
 - **Word-class-aware word motions** — `w`/`b`/`e` classify runs of characters into whitespace / word (`[A-Za-z0-9_]`) / punctuation, so e.g. `"foo` is treated as two words (`"` then `foo`), matching VIM's default word boundaries.
 - **Viewport scrolling** — the visible window follows the cursor both vertically and horizontally as the buffer grows past the terminal size.
 - **Status bar** — current mode, file name, line count, modified/saved state, and cursor row/column.
@@ -35,6 +36,7 @@ go build -o txi .
 | `db` | Normal | delete back to the start of the previous word (stops at the start of the line) |
 | `dd` | Normal | delete the current line |
 | `Backspace` | Insert | delete the character before the cursor, joining onto the line above at column 0 |
+| `Enter` | Insert | split the line at the cursor (in Normal mode it moves down a line) |
 | `gg` | Normal | jump to the top of the buffer |
 | `G` | Normal | jump to the bottom of the buffer |
 | `I` | Normal | jump to start of line and enter Insert mode |
@@ -95,7 +97,6 @@ shrinks back. Only the index scales with file size, at 8 bytes per line.
 - Visual mode
 - Search (`/`, `?`, `n`, `N`)
 - The rest of the operators and text objects (`c`, `cw`, `dj`, `di(`, ..., and counts like `3dd`) — only `x`, `dw`, `de`, `db` and `dd` exist so far, and they stop at the line boundary instead of running onto the next line
-- `Enter` — a line can be opened (`o`/`O`) and joined (`Backspace` at column 0) but not yet split at the cursor
 - Yank/paste (`y`, `p`) and registers
 - Undo/redo (`u`, `Ctrl-R`) — `undoBuf` is scaffolded in `globals.go` and shown in the status bar as `[Undo]`, but nothing populates it yet. Same story for `copyBuf`/`[Copy]`.
 - Marks and macros
