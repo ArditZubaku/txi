@@ -86,6 +86,7 @@ func handleReadModeChar(keyEvent termbox.Event) {
 }
 
 var specialKeyActions = map[termbox.Key]func(){
+	termbox.KeyCtrlS:      saveFile,
 	termbox.KeyArrowUp:    up,
 	termbox.KeyCtrlU:      pageUp,
 	termbox.KeyArrowDown:  down,

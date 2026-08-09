@@ -1,6 +1,10 @@
 package main
 
-import "github.com/nsf/termbox-go"
+import (
+	"log/slog"
+
+	"github.com/nsf/termbox-go"
+)
 
 func insertRune(event termbox.Event) {
 	ch := event.Ch
@@ -46,6 +50,16 @@ func deleteTo(row, col int) {
 
 	buf.DeleteRunes(currentRow, currentCol, col)
 	modified = true
+}
+
+// saveFile is Ctrl-S, in either mode. It leaves the buffer marked modified if
+// the write failed, so the status bar keeps saying so.
+func saveFile() {
+	if err := buf.Save(sourceFile); err != nil {
+		slog.Error("Failed to save file", "path", sourceFile, "error", err)
+		return
+	}
+	modified = false
 }
 
 func deleteLine() {
