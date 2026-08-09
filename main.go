@@ -57,15 +57,12 @@ func runEditor() {
 	}
 }
 
-const (
-	cursorLineFg = termbox.ColorBlack
-	cursorLineBg = termbox.ColorLightGray
-)
+const cursorLineBg = termbox.ColorDarkGray
 
 // Characters drawn over the band with SetChar keep the colours painted here.
 func highlightRow(row int) {
 	for col := 0; col < COLS; col++ {
-		termbox.SetCell(col, row, ' ', cursorLineFg, cursorLineBg)
+		termbox.SetCell(col, row, ' ', termbox.ColorDefault, cursorLineBg)
 	}
 }
 
@@ -88,7 +85,7 @@ func displayTextBuffer() {
 
 		numberColor, background := termbox.ColorBlue, termbox.ColorDefault
 		if textBufRow == currentRow {
-			numberColor, background = cursorLineFg, cursorLineBg
+			numberColor, background = termbox.ColorYellow, cursorLineBg
 			highlightRow(row)
 		}
 		printMessage(0, row, numberColor, background, lineNumberLabel(textBufRow, currentRow, gutter))
